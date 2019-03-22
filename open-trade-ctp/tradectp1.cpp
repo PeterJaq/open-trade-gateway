@@ -1,5 +1,5 @@
 ﻿/////////////////////////////////////////////////////////////////////////
-///@file ctp_define.h
+///@file tradectp1.cpp
 ///@brief	CTP交易逻辑实现
 ///@copyright	上海信易信息科技股份有限公司 版权所有
 /////////////////////////////////////////////////////////////////////////
@@ -236,7 +236,10 @@ void traderctp::OnRspAuthenticate(CThostFtdcRspAuthenticateField *pRspAuthentica
 			_logInCondition.notify_all();
 			return;
 		}
-		SendLoginRequest();
+		else
+		{
+			SendLoginRequest();
+		}		
 	}
 	else
 	{
