@@ -132,9 +132,10 @@ void traderctp::ReceiveMsg()
 			}
 			else
 			{
-				Log(LOG_WARNING, NULL,
-					"traderctp ReceiveMsg:%s is invalid!"
-					, line.c_str());
+				Log(LOG_WARNING
+					,NULL
+					,"traderctp ReceiveMsg:%s is invalid!"
+					,line.c_str());
 				continue;
 			}
 			std::shared_ptr<std::string> msg_ptr(new std::string(msg));
@@ -201,7 +202,8 @@ std::string traderctp::GetConnectionStr()
 
 void traderctp::CloseConnection(int nId)
 {
-	Log(LOG_WARNING, NULL,"CloseConnection:%d",nId);
+	Log(LOG_INFO,NULL,"CloseConnection:%d",nId);
+
 	for (std::vector<int>::iterator it = m_logined_connIds.begin();
 		it != m_logined_connIds.end(); it++)
 	{
@@ -260,11 +262,15 @@ void traderctp::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 
 		SerializerCtp ss;
 		if (!ss.FromString(msg.c_str()))
+		{
 			return;
+		}			
 
 		rapidjson::Value* dt = rapidjson::Pointer("/aid").Get(*(ss.m_doc));
 		if (!dt || !dt->IsString())
+		{
 			return;
+		}			
 
 		std::string aid = dt->GetString();
 		if (aid == "peek_message") 
@@ -309,8 +315,10 @@ void traderctp::OnClientReqChangePassword(CThostFtdcUserPasswordUpdateField f)
 	strcpy_x(f.BrokerID, m_broker_id.c_str());
 	strcpy_x(f.UserID, _req_login.user_name.c_str());
 	int r = m_pTdApi->ReqUserPasswordUpdate(&f, 0);
-	Log(LOG_INFO, NULL, "ctp ReqUserPasswordUpdate, instance=%p, ret=%d"
-		, this, r);
+	Log(LOG_INFO, NULL
+		, "ctp ReqUserPasswordUpdate, instance=%p, ret=%d"
+		, this
+		, r);
 }
 
 void traderctp::OnClientReqTransfer(CThostFtdcReqTransferField f)
@@ -326,16 +334,25 @@ void traderctp::OnClientReqTransfer(CThostFtdcReqTransferField f)
 	{
 		strcpy_x(f.TradeCode, "202001");
 		int r = m_pTdApi->ReqFromBankToFutureByFuture(&f, 0);
-		Log(LOG_INFO, NULL, "ctp ReqFromBankToFutureByFuture, instance=%p, UserID=%s, TradeAmount=%f, ret=%d"
-			, this,f.UserID, f.TradeAmount, r);
+		Log(LOG_INFO
+			, NULL
+			, "ctp ReqFromBankToFutureByFuture, instance=%p, UserID=%s, TradeAmount=%f, ret=%d"
+			, this,f.UserID
+			, f.TradeAmount
+			, r);
 	}
 	else
 	{
 		strcpy_x(f.TradeCode, "202002");
 		f.TradeAmount = -f.TradeAmount;
 		int r = m_pTdApi->ReqFromFutureToBankByFuture(&f, 0);
-		Log(LOG_INFO, NULL, "ctp ReqFromFutureToBankByFuture, instance=%p, UserID=%s, TradeAmount=%f, ret=%d"
-			, this, f.UserID, f.TradeAmount, r);
+		Log(LOG_INFO
+			, NULL
+			, "ctp ReqFromFutureToBankByFuture, instance=%p, UserID=%s, TradeAmount=%f, ret=%d"
+			, this
+			, f.UserID
+			, f.TradeAmount
+			, r);
 	}
 }
 
@@ -374,9 +391,15 @@ void traderctp::OnClientReqCancelOrder(CtpActionCancelOrder d)
 	m_action_order_map.insert(
 		std::map<std::string, std::string>::value_type(strKey, strKey));
 	   	
-	int r = m_pTdApi->ReqOrderAction(&d.f, 0);
-	Log(LOG_INFO, NULL, "ctp ReqOrderAction, instance=%p, InvestorID=%s, InstrumentID=%s, OrderRef=%s, ret=%d"
-		, this, d.f.InvestorID, d.f.InstrumentID, d.f.OrderRef, r);
+	int r = m_pTdApi->ReqOrderAction(&d.f,0);
+	Log(LOG_INFO
+		, NULL
+		, "ctp ReqOrderAction, instance=%p, InvestorID=%s, InstrumentID=%s, OrderRef=%s, ret=%d"
+		, this
+		, d.f.InvestorID
+		, d.f.InstrumentID
+		, d.f.OrderRef
+		, r);
 }
 
 void traderctp::OnClientReqInsertOrder(CtpActionInsertOrder d)
@@ -386,6 +409,7 @@ void traderctp::OnClientReqInsertOrder(CtpActionInsertOrder d)
 		OutputNotifyAllSycn(1,GBKToUTF8("报单user_id错误，不能下单"), "WARNING");
 		return;
 	}
+
 	strcpy_x(d.f.BrokerID,m_broker_id.c_str());
 	strcpy_x(d.f.UserID,_req_login.user_name.c_str());
 	strcpy_x(d.f.InvestorID,_req_login.user_name.c_str());
@@ -416,6 +440,7 @@ void traderctp::OnClientReqInsertOrder(CtpActionInsertOrder d)
 		, d.f.InvestorID
 		, d.f.InstrumentID
 		, d.f.OrderRef,r);
+
 	SaveToFile();
 }
 
@@ -532,16 +557,14 @@ bool traderctp::WaitLogIn()
 
 void traderctp::InitTdApi()
 {
-	std::string flow_file_name = GenerateUniqFileName();	
-	Log(LOG_WARNING, NULL, "flow_file_name:%s",flow_file_name.c_str());
+	std::string flow_file_name = GenerateUniqFileName();		
 	m_pTdApi = CThostFtdcTraderApi::CreateFtdcTraderApi(flow_file_name.c_str());
 	m_pTdApi->RegisterSpi(this);
 	m_broker_id = _req_login.broker.ctp_broker_id;
 	for (auto it = _req_login.broker.trading_fronts.begin()
 		; it != _req_login.broker.trading_fronts.end(); ++it)
 	{
-		std::string& f = *it;
-		Log(LOG_WARNING, NULL,"front:%s",f.c_str());
+		std::string& f = *it;		
 		m_pTdApi->RegisterFront((char*)(f.c_str()));
 	}	
 	m_pTdApi->SubscribePrivateTopic(THOST_TERT_RESUME);
@@ -687,9 +710,7 @@ void traderctp::SendMsgAll(std::shared_ptr<std::string> conn_str_ptr,std::shared
 				}
 				std::stringstream ss;
 				ss << conn_str << "#" << flag << "#" << vecs[i];
-				std::string str = ss.str();
-				//Log(LOG_ERROR, NULL, "SendMsgAll 1 msg:%s"
-				//, str.c_str());
+				std::string str = ss.str();				
 				_out_mq_ptr->send(str.c_str(), str.length(), 0);
 			}
 		}
@@ -705,9 +726,7 @@ void traderctp::SendMsgAll(std::shared_ptr<std::string> conn_str_ptr,std::shared
 		{
 			std::stringstream ss;
 			ss << conn_str << "#" << msg;
-			std::string str = ss.str();
-			//Log(LOG_ERROR, NULL, "SendMsgAll 2 msg:%s"
-			//	, str.c_str());
+			std::string str = ss.str();			
 			_out_mq_ptr->send(str.c_str(), str.length(), 0);
 		}
 		catch (std::exception& ex)
@@ -731,9 +750,6 @@ void traderctp::SendMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 	}
 
 	std::string& msg = *msg_ptr;
-
-	//Log(LOG_ERROR, NULL, "SendMsg connid:%d msg:%s"
-	//	,connId,msg.c_str());
 
 	int length = MAX_MSG_LENTH - 16;
 	if (msg.length() > length)

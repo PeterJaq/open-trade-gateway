@@ -19,7 +19,8 @@
 
 using namespace std::chrono;
 
-tradersim::tradersim(boost::asio::io_context& ios, const std::string& logFileName)
+tradersim::tradersim(boost::asio::io_context& ios
+	, const std::string& logFileName)
 :m_b_login(false)
 ,_logFileName(logFileName)
 ,_ios(ios)
@@ -336,7 +337,7 @@ void tradersim::SaveUserDataFile()
 
 void tradersim::CloseConnection(int nId)
 {
-	Log(LOG_WARNING, NULL, "CloseConnection:%d", nId);
+	Log(LOG_INFO,NULL,"CloseConnection:%d", nId);
 	for (std::vector<int>::iterator it = m_logined_connIds.begin();
 		it != m_logined_connIds.end(); it++)
 	{
@@ -397,15 +398,15 @@ void tradersim::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 		if (!m_b_login)
 		{
 			Log(LOG_WARNING, NULL, "trade sim receive other msg before login:%s"
-				, msg.c_str());			
+				,msg.c_str());			
 			return;
 		}
 
 		if (!IsConnectionLogin(connId))
 		{
 			Log(LOG_WARNING, NULL
-				, "trade sim receive other msg which from not login connecion:%s"
-				, msg.c_str());
+				,"trade sim receive other msg which from not login connecion:%s"
+				,msg.c_str());
 			return;
 		}
 		

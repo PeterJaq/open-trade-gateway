@@ -74,9 +74,6 @@ void connection::SendTextMsg_i(std::shared_ptr<std::string> msg_ptr)
 
 	std::string msg = *msg_ptr;	
 
-	//Log(LOG_WARNING, NULL
-	//	,"connection::SendTextMsg to Client:%s",msg.c_str());
-	
 	size_t n = boost::asio::buffer_copy(m_output_buffer.prepare(msg.size())
 		, boost::asio::buffer(msg));
 	m_output_buffer.commit(n);
@@ -128,10 +125,6 @@ void connection::OnRead(boost::system::error_code ec, std::size_t bytes_transfer
 
 void connection::OnMessage(const std::string &json_str)
 {
-	//Log(LOG_WARNING, NULL
-	//	, "connection recieve message from client:%s"
-	//	, json_str.c_str());
-
 	SerializerTradeBase ss;
 	if (!ss.FromString(json_str.c_str()))
 	{
@@ -156,7 +149,6 @@ void connection::OnMessage(const std::string &json_str)
 
 void connection::ProcessLogInMessage(const ReqLogin& req, const std::string &json_str)
 {
-	//Log(LOG_WARNING,NULL,"req_login:%s",req.user_name.c_str());
 	_login_msg = json_str;
 	_reqLogin = req;
 	auto it = g_config.brokers.find(_reqLogin.bid);
@@ -165,14 +157,12 @@ void connection::ProcessLogInMessage(const ReqLogin& req, const std::string &jso
 		Log(LOG_WARNING,NULL,
 			"trade server req_login invalid bid,session=%p, bid=%s"
 			, this,req.bid.c_str());
-		SendTextMsg("req_login invalid bid");
 		return;
 	}
 
 	_reqLogin.broker = it->second;
 	std::string strBrokerType = _reqLogin.broker.broker_type;
 	_user_broker_key = strBrokerType + "_" + _reqLogin.bid + "_" + _reqLogin.user_name;
-	Log(LOG_WARNING,NULL,"_user_broker_key:%s",_user_broker_key.c_str());
 	auto userIt = g_userProcessInfoMap.find(_user_broker_key);
 	//如果用户进程没有启动,启动用户进程处理
 	if (userIt == g_userProcessInfoMap.end())
@@ -254,8 +244,6 @@ void connection::ProcessOtherMessage(const std::string &json_str)
 		
 	userProcessInfoPtr->SendMsg(_connection_id,json_str);
 }
-
-
 
 void connection::OnCloseConnection()
 {	

@@ -215,7 +215,10 @@ void traderctp::ProcessOnRspAuthenticate(std::shared_ptr<CThostFtdcRspInfoField>
 			,pRspInfo ? GBKToUTF8(pRspInfo->ErrorMsg).c_str() : "");
 		return;
 	}
-	SendLoginRequest();
+	else
+	{
+		SendLoginRequest();
+	}	
 }
 
 void traderctp::OnRspAuthenticate(CThostFtdcRspAuthenticateField *pRspAuthenticateField
@@ -791,71 +794,79 @@ void traderctp::ProcessQryInvestorPosition(
 	std::shared_ptr<CThostFtdcInvestorPositionField> pRspInvestorPosition,
 	std::shared_ptr<CThostFtdcRspInfoField> pRspInfo, int nRequestID, bool bIsLast)
 {
-	if (pRspInvestorPosition) 
+	if (pRspInvestorPosition)
 	{
-		Log(LOG_INFO, NULL, "traderctp ProcessQryInvestorPosition, instance=%p, nRequestID=%d, bIsLast=%d, UserID=%s, InstrumentId=%s, ExchangeId=%s"
-			, this, nRequestID, bIsLast, _req_login.user_name.c_str()
+		Log(LOG_INFO, NULL
+			, "traderctp ProcessQryInvestorPosition, instance=%p, nRequestID=%d, bIsLast=%d, UserID=%s, InstrumentId=%s, ExchangeId=%s"
+			, this
+			, nRequestID
+			, bIsLast
+			, _req_login.user_name.c_str()
 			, pRspInvestorPosition->InstrumentID
-			, pRspInvestorPosition->ExchangeID);	
+			, pRspInvestorPosition->ExchangeID);
 		std::string exchange_id = GuessExchangeId(pRspInvestorPosition->InstrumentID);
 		std::string symbol = exchange_id + "." + pRspInvestorPosition->InstrumentID;
 		auto ins = GetInstrument(symbol);
-		if (!ins) 
+		if (!ins)
 		{
-			Log(LOG_ERROR, NULL
+			Log(LOG_WARNING, NULL
 				, "ctp OnRspQryInvestorPosition, instrument not exist, instance=%p, UserID=%s, symbol=%s"
-				, this,_req_login.user_name.c_str(), symbol.c_str());
-			return;
+				, this
+				, _req_login.user_name.c_str()
+				, symbol.c_str());
 		}
-		Position& position = GetPosition(symbol);
-		position.user_id = pRspInvestorPosition->InvestorID;
-		position.exchange_id = exchange_id;
-		position.instrument_id = pRspInvestorPosition->InstrumentID;
-		if (pRspInvestorPosition->PosiDirection == THOST_FTDC_PD_Long) 
+		else
 		{
-			if (pRspInvestorPosition->PositionDate == THOST_FTDC_PSD_Today) 
+			Position& position = GetPosition(symbol);
+			position.user_id = pRspInvestorPosition->InvestorID;
+			position.exchange_id = exchange_id;
+			position.instrument_id = pRspInvestorPosition->InstrumentID;
+			if (pRspInvestorPosition->PosiDirection == THOST_FTDC_PD_Long)
 			{
-				position.volume_long_today = pRspInvestorPosition->Position;
-				position.volume_long_frozen_today = pRspInvestorPosition->ShortFrozen;
-				position.position_cost_long_today = pRspInvestorPosition->PositionCost;
-				position.open_cost_long_today = pRspInvestorPosition->OpenCost;
-				position.margin_long_today = pRspInvestorPosition->UseMargin;
+				if (pRspInvestorPosition->PositionDate == THOST_FTDC_PSD_Today)
+				{
+					position.volume_long_today = pRspInvestorPosition->Position;
+					position.volume_long_frozen_today = pRspInvestorPosition->ShortFrozen;
+					position.position_cost_long_today = pRspInvestorPosition->PositionCost;
+					position.open_cost_long_today = pRspInvestorPosition->OpenCost;
+					position.margin_long_today = pRspInvestorPosition->UseMargin;
+				}
+				else
+				{
+					position.volume_long_his = pRspInvestorPosition->Position;
+					position.volume_long_frozen_his = pRspInvestorPosition->ShortFrozen;
+					position.position_cost_long_his = pRspInvestorPosition->PositionCost;
+					position.open_cost_long_his = pRspInvestorPosition->OpenCost;
+					position.margin_long_his = pRspInvestorPosition->UseMargin;
+				}
+				position.position_cost_long = position.position_cost_long_today + position.position_cost_long_his;
+				position.open_cost_long = position.open_cost_long_today + position.open_cost_long_his;
+				position.margin_long = position.margin_long_today + position.margin_long_his;
 			}
-			else 
+			else
 			{
-				position.volume_long_his = pRspInvestorPosition->Position;
-				position.volume_long_frozen_his = pRspInvestorPosition->ShortFrozen;
-				position.position_cost_long_his = pRspInvestorPosition->PositionCost;
-				position.open_cost_long_his = pRspInvestorPosition->OpenCost;
-				position.margin_long_his = pRspInvestorPosition->UseMargin;
+				if (pRspInvestorPosition->PositionDate == THOST_FTDC_PSD_Today)
+				{
+					position.volume_short_today = pRspInvestorPosition->Position;
+					position.volume_short_frozen_today = pRspInvestorPosition->LongFrozen;
+					position.position_cost_short_today = pRspInvestorPosition->PositionCost;
+					position.open_cost_short_today = pRspInvestorPosition->OpenCost;
+					position.margin_short_today = pRspInvestorPosition->UseMargin;
+				}
+				else
+				{
+					position.volume_short_his = pRspInvestorPosition->Position;
+					position.volume_short_frozen_his = pRspInvestorPosition->LongFrozen;
+					position.position_cost_short_his = pRspInvestorPosition->PositionCost;
+					position.open_cost_short_his = pRspInvestorPosition->OpenCost;
+					position.margin_short_his = pRspInvestorPosition->UseMargin;
+				}
+				position.position_cost_short = position.position_cost_short_today + position.position_cost_short_his;
+				position.open_cost_short = position.open_cost_short_today + position.open_cost_short_his;
+				position.margin_short = position.margin_short_today + position.margin_short_his;
 			}
-			position.position_cost_long = position.position_cost_long_today + position.position_cost_long_his;
-			position.open_cost_long = position.open_cost_long_today + position.open_cost_long_his;
-			position.margin_long = position.margin_long_today + position.margin_long_his;
+			position.changed = true;
 		}
-		else 
-		{
-			if (pRspInvestorPosition->PositionDate == THOST_FTDC_PSD_Today) 
-			{
-				position.volume_short_today = pRspInvestorPosition->Position;
-				position.volume_short_frozen_today = pRspInvestorPosition->LongFrozen;
-				position.position_cost_short_today = pRspInvestorPosition->PositionCost;
-				position.open_cost_short_today = pRspInvestorPosition->OpenCost;
-				position.margin_short_today = pRspInvestorPosition->UseMargin;
-			}
-			else 
-			{
-				position.volume_short_his = pRspInvestorPosition->Position;
-				position.volume_short_frozen_his = pRspInvestorPosition->LongFrozen;
-				position.position_cost_short_his = pRspInvestorPosition->PositionCost;
-				position.open_cost_short_his = pRspInvestorPosition->OpenCost;
-				position.margin_short_his = pRspInvestorPosition->UseMargin;
-			}
-			position.position_cost_short = position.position_cost_short_today + position.position_cost_short_his;
-			position.open_cost_short = position.open_cost_short_today + position.open_cost_short_his;
-			position.margin_short = position.margin_short_today + position.margin_short_his;
-		}
-		position.changed = true;
 	}
 	if (bIsLast) 
 	{
@@ -894,14 +905,17 @@ void traderctp::ProcessQryTradingAccount(std::shared_ptr<CThostFtdcTradingAccoun
 		m_rsp_account_id.store(nRequestID);
 	}
 
-	Log(LOG_INFO, NULL, "traderctp ProcessQryTradingAccount, instance=%p, UserID=%s, ErrorID=%d"
+	Log(LOG_INFO, NULL
+		, "traderctp ProcessQryTradingAccount, instance=%p, UserID=%s, ErrorID=%d"
 		, this
 		,_req_login.user_name.c_str()
 		, pRspInfo ? pRspInfo->ErrorID : -999);
 
 	if (!pRspInvestorAccount)
+	{
 		return;
-	
+	}
+			
 	Account& account = GetAccount(pRspInvestorAccount->CurrencyID);
 
 	//账号及币种
@@ -915,9 +929,12 @@ void traderctp::ProcessQryTradingAccount(std::shared_ptr<CThostFtdcTradingAccoun
 	account.close_profit = pRspInvestorAccount->CloseProfit;
 	account.commission = pRspInvestorAccount->Commission;
 	account.premium = pRspInvestorAccount->CashIn;
-	account.static_balance = pRspInvestorAccount->PreBalance - pRspInvestorAccount->PreCredit
-		- pRspInvestorAccount->PreMortgage + pRspInvestorAccount->Mortgage
-		- pRspInvestorAccount->Withdraw + pRspInvestorAccount->Deposit;
+	account.static_balance = pRspInvestorAccount->PreBalance 
+		- pRspInvestorAccount->PreCredit
+		- pRspInvestorAccount->PreMortgage 
+		+ pRspInvestorAccount->Mortgage
+		- pRspInvestorAccount->Withdraw 
+		+ pRspInvestorAccount->Deposit;
 	//当前持仓盈亏
 	account.position_profit = pRspInvestorAccount->PositionProfit;
 	account.float_profit = 0;
@@ -964,17 +981,21 @@ void traderctp::ProcessQryContractBank(std::shared_ptr<CThostFtdcContractBankFie
 		, this
 		, _req_login.user_name.c_str()
 		, pRspInfo ? pRspInfo->ErrorID : -999);
+
 	if (!pContractBank) 
 	{
 		m_need_query_bank.store(false);
 		return;
 	}
+
 	Bank& bank = GetBank(pContractBank->BankID);
 	bank.bank_id = pContractBank->BankID;
 	bank.bank_name = GBKToUTF8(pContractBank->BankName);
-	Log(LOG_INFO, NULL, "traderctp ProcessQryContractBank,bank_id=%s,bank_name=%s"		
-		, bank.bank_id.c_str()
-		, bank.bank_name.c_str());
+	Log(LOG_INFO, NULL
+		,"traderctp ProcessQryContractBank,bank_id=%s,bank_name=%s"		
+		,bank.bank_id.c_str()
+		,bank.bank_name.c_str());
+
 	if (bIsLast) 
 	{
 		m_need_query_bank.store(false);
@@ -1005,7 +1026,8 @@ void traderctp::OnRspQryContractBank(CThostFtdcContractBankField *pContractBank
 void traderctp::ProcessQryAccountregister(std::shared_ptr<CThostFtdcAccountregisterField> pAccountregister,
 	std::shared_ptr<CThostFtdcRspInfoField> pRspInfo, int nRequestID, bool bIsLast)
 {
-	Log(LOG_INFO, NULL, "traderctp ProcessQryAccountregister, instance=%p, UserID=%s, ErrorID=%d"
+	Log(LOG_INFO, NULL
+		, "traderctp ProcessQryAccountregister, instance=%p, UserID=%s, ErrorID=%d"
 		, this
 		,_req_login.user_name.c_str()
 		, pRspInfo ? pRspInfo->ErrorID : -999);
@@ -1015,7 +1037,9 @@ void traderctp::ProcessQryAccountregister(std::shared_ptr<CThostFtdcAccountregis
 		m_need_query_register.store(false);
 		return;
 	}	
+
 	Log(LOG_INFO,NULL,"traderctp ProcessQryAccountregister,need query register");
+
 	Bank& bank = GetBank(pAccountregister->BankID);
 	bank.changed = true;
 	if (bIsLast) 
@@ -1048,13 +1072,16 @@ void traderctp::OnRspQryAccountregister(CThostFtdcAccountregisterField *pAccount
 void traderctp::ProcessQryTransferSerial(std::shared_ptr<CThostFtdcTransferSerialField> pTransferSerial,
 	std::shared_ptr<CThostFtdcRspInfoField> pRspInfo, int nRequestID, bool bIsLast)
 {
-	Log(LOG_INFO, NULL, "ctp OnRspQryTransferSerial, instance=%p, UserID=%s, ErrorID=%d"
-		, this, _req_login.user_name.c_str()
+	Log(LOG_INFO, NULL
+		, "ctp OnRspQryTransferSerial, instance=%p, UserID=%s, ErrorID=%d"
+		, this
+		, _req_login.user_name.c_str()
 		, pRspInfo ? pRspInfo->ErrorID : -999);
 	if (!pTransferSerial)
 	{
 		return;
 	}			
+
 	TransferLog& d = GetTransferLog(std::to_string(pTransferSerial->PlateSerial));
 	d.currency = pTransferSerial->CurrencyID;
 	d.amount = pTransferSerial->TradeAmount;
@@ -1099,12 +1126,15 @@ void traderctp::ProcessFromBankToFutureByFuture(
 	std::shared_ptr<CThostFtdcRspTransferField> pRspTransfer)
 {
 	if (!pRspTransfer)
+	{
 		return;
+	}		
 
 	Log(LOG_INFO, NULL
 		, "ctp OnRtnFromBankToFutureByFuture, instance=%p, UserID=%s"
 		, this
 		,_req_login.user_name.c_str());
+
 	if (pRspTransfer->ErrorID == 0) 
 	{		
 		TransferLog& d = GetTransferLog(std::to_string(pRspTransfer->PlateSerial));
@@ -1235,8 +1265,11 @@ void traderctp::ProcessRtnOrder(std::shared_ptr<CThostFtdcOrderField> pOrder)
 	auto ins = GetInstrument(order.symbol());
 	if (!ins)
 	{
-		Log(LOG_ERROR, NULL, "ctp OnRtnOrder, instrument not exist, instance=%p, UserID=%s, symbol=%s"
-			, this, _req_login.user_name.c_str(),order.symbol().c_str());
+		Log(LOG_ERROR, NULL
+			, "ctp OnRtnOrder, instrument not exist, instance=%p, UserID=%s, symbol=%s"
+			, this
+			, _req_login.user_name.c_str()
+			,order.symbol().c_str());
 		return;
 	}
 	switch (pOrder->Direction)
@@ -1431,6 +1464,7 @@ void traderctp::ProcessRtnTrade(std::shared_ptr<CThostFtdcTradeField> pTrade)
 			, this, _req_login.user_name.c_str(), trade.symbol().c_str());
 		return;
 	}
+
 	switch (pTrade->Direction)
 	{
 	case THOST_FTDC_D_Buy:
@@ -1495,8 +1529,11 @@ void traderctp::ProcessOnRtnTradingNotice(std::shared_ptr<CThostFtdcTradingNotic
 	auto s = GBKToUTF8(pTradingNoticeInfo->FieldContent);
 	if (!s.empty())
 	{
-		Log(LOG_INFO, NULL, "ctp OnRtnTradingNotice,instance=%p,TradingNoticeInfo=%s"
-			, this, s.c_str());
+		Log(LOG_INFO
+			, NULL
+			, "ctp OnRtnTradingNotice,instance=%p,TradingNoticeInfo=%s"
+			, this
+			, s.c_str());
 		OutputNotifyAllAsych(0,s);
 	}
 }

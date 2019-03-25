@@ -18,7 +18,8 @@ struct LogContext
 
 const char* Level2String(LogLevel level)
 {
-    switch (level) {
+    switch (level) 
+	{
         case LogLevel::LOG_DEBUG:
             return "debug";
         case LogLevel::LOG_INFO:
@@ -61,9 +62,11 @@ void Log(LogLevel level, const char* pack_str, const char* message_fmt, ...)
     va_start(arglist, message_fmt);
     vfprintf(log_context.m_log_file, message_fmt, arglist);
     va_end(arglist);
-    if (pack_str){
+    if (pack_str)
+	{
         fprintf(log_context.m_log_file, "\", \"pack\": %s}\n", pack_str);
-    } else {
+    } else 
+	{
         fprintf(log_context.m_log_file, "\"}\n");
     }
     fflush(log_context.m_log_file);
@@ -75,7 +78,7 @@ bool LogInit(const std::string& fileName)
     log_context.m_log_file = fopen(logFileName.c_str(),"a+t");
     if (!log_context.m_log_file)
 	{
-        printf("can't open log file:/var/log/open-trade-gateway/log");
+        printf("can't open log file:%s",logFileName.c_str());
         return false;
     }
     return true;

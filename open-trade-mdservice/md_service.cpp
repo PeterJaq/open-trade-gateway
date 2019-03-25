@@ -87,13 +87,14 @@ namespace md_service
 		try
 		{
 			boost::interprocess::shared_memory_object::remove("InsMapSharedMemory");
-			boost::interprocess::managed_shared_memory* segment = new boost::interprocess::managed_shared_memory
+			boost::interprocess::managed_shared_memory* segment = 
+				new boost::interprocess::managed_shared_memory
 			(boost::interprocess::create_only
 				, "InsMapSharedMemory" //segment name
-				, 32 * 1024 * 1024);          //segment size in bytes
+				, 32 * 1024 * 1024);  //segment size in bytes
 
 			 //Initialize the shared memory STL-compatible allocator
-		  //    ShmemAllocator alloc_inst (segment.get_segment_manager());
+			//ShmemAllocator alloc_inst (segment.get_segment_manager());
 			ShmemAllocator* alloc_inst = new ShmemAllocator(segment->get_segment_manager());
 
 			//Construct a shared memory map.
@@ -112,7 +113,7 @@ namespace md_service
 
 		//下载和加载合约表文件
 		std::string content;
-		if (HttpGet(ins_file_url, &content) != 0) 
+		if (HttpGet(ins_file_url,&content) != 0) 
 		{
 			Log(LOG_FATAL, NULL, "md service download ins file fail");
 			return false;
@@ -152,7 +153,8 @@ namespace md_service
 	
 	void DoResolve();
 
-	void OnResolve(boost::system::error_code ec, boost::asio::ip::tcp::resolver::results_type results);
+	void OnResolve(boost::system::error_code ec
+		, boost::asio::ip::tcp::resolver::results_type results);
 
 	void OnConnect(boost::system::error_code ec);
 
@@ -221,7 +223,9 @@ namespace md_service
 	{
 		if (ec)
 		{
-			Log(LOG_WARNING, NULL, "md service resolve fail, ec=%s", ec.message().c_str());
+			Log(LOG_WARNING, NULL
+				, "md service resolve fail, ec=%s"
+				, ec.message().c_str());
 			return;
 		}
 		// Make the connection on the IP address we get from a lookup
@@ -238,10 +242,13 @@ namespace md_service
 	{
 		if (ec)
 		{
-			Log(LOG_WARNING, NULL, "md session connect fail, ec=%s", ec.message().c_str());
+			Log(LOG_WARNING
+				, NULL
+				, "md session connect fail, ec=%s"
+				, ec.message().c_str());
 			return;
 		}
-		// Perform the websocket handshake
+		//Perform the websocket handshake
 		md_context.m_ws_socket->async_handshake_ex(md_host, md_path,
 			[](boost::beast::websocket::request_type& m)
 		{
@@ -287,7 +294,10 @@ namespace md_service
 		{
 			if (ec != boost::beast::websocket::error::closed)
 			{
-				Log(LOG_WARNING, NULL, "md service read fail, ec=%s", ec.message().c_str());
+				Log(LOG_WARNING
+					, NULL
+					, "md service read fail, ec=%s"
+					, ec.message().c_str());
 			}
 			Log(LOG_INFO, NULL, "md session loss connection");
 			DoResolve();
@@ -302,6 +312,7 @@ namespace md_service
 	void OnMessage(const std::string &json_str)
 	{
 		Log(LOG_INFO, NULL, "md service received message, len=%d", json_str.size());
+		
 		SendTextMsg(md_context.m_req_peek_message);
 
 		MdParser ss;

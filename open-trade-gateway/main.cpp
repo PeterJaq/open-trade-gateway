@@ -21,13 +21,13 @@ int main(int argc, char* argv[])
 			return -1;
 		}
 
-		Log(LOG_INFO, NULL, "trade_server init");
+		Log(LOG_INFO,NULL,"trade_server init");
 
 		//加载配置文件
 		if (!LoadConfig())
 
 		{
-			Log(LOG_WARNING, NULL, "load config failed!");
+			Log(LOG_WARNING,NULL,"load config failed!");
 			LogCleanup();
 			return -1;
 		}
@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
 		
 		boost::asio::io_context ios;
 		
-		trade_server s(ios, g_config.port);
+		trade_server s(ios,g_config.port);
 		if (!s.init())
 		{
 			md_child.terminate();

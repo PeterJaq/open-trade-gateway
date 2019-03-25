@@ -187,16 +187,21 @@ void tradersim::UpdatePositionVolume(Position* position)
 	position->frozen_margin = 0;
 	position->volume_long_frozen_today = 0;
 	position->volume_short_frozen_today = 0;
-	for (auto it_order = m_alive_order_set.begin(); it_order != m_alive_order_set.end(); ++it_order) {
+	for (auto it_order = m_alive_order_set.begin()
+		; it_order != m_alive_order_set.end()
+		; ++it_order) 
+	{
 		Order* order = *it_order;
 		if (order->status != kOrderStatusAlive)
 			continue;
 		if (position->instrument_id != order->instrument_id)
 			continue;
-		if (order->offset == kOffsetOpen) {
+		if (order->offset == kOffsetOpen) 
+		{
 			position->frozen_margin += position->ins->margin * order->volume_left;
 		}
-		else {
+		else 
+		{
 			if (order->direction == kDirectionBuy)
 				position->volume_short_frozen_today += order->volume_left;
 			else
@@ -210,11 +215,13 @@ void tradersim::UpdatePositionVolume(Position* position)
 	position->margin_long = position->ins->margin * position->volume_long;
 	position->margin_short = position->ins->margin * position->volume_short;
 	position->margin = position->margin_long + position->margin_short;
-	if (position->volume_long > 0) {
+	if (position->volume_long > 0) 
+	{
 		position->open_price_long = position->open_cost_long / (position->volume_long * position->ins->volume_multiple);
 		position->position_price_long = position->position_cost_long / (position->volume_long * position->ins->volume_multiple);
 	}
-	if (position->volume_short > 0) {
+	if (position->volume_short > 0) 
+	{
 		position->open_price_short = position->open_cost_short / (position->volume_short * position->ins->volume_multiple);
 		position->position_price_short = position->position_cost_short / (position->volume_short * position->ins->volume_multiple);
 	}

@@ -140,8 +140,6 @@ void UserProcessInfo::SendMsg(int connid,const std::string& msg)
 	std::string str = ss.str();
 	try
 	{
-		//Log(LOG_WARNING, NULL
-		//	, "UserProcessInfo SendMsg to trade instance:%s",str.c_str());
 		_in_mq_ptr->send(str.c_str(),str.length(), 0);
 	}
 	catch (std::exception& ex)
@@ -165,9 +163,7 @@ void UserProcessInfo::NotifyClose(int connid)
 	std::string str = ss.str();
 	try
 	{
-		//Log(LOG_WARNING, NULL
-		//	, "UserProcessInfo::NotifyClose to trade instance:%s", str.c_str());
-		_in_mq_ptr->send(str.c_str(), str.length(), 0);
+		_in_mq_ptr->send(str.c_str(),str.length(),0);
 	}
 	catch (std::exception& ex)
 	{
@@ -208,8 +204,6 @@ void UserProcessInfo::ProcessMsg(std::shared_ptr<std::string> msg_ptr)
 		return;
 	}
 	std::string msg = *msg_ptr;	
-	//Log(LOG_WARNING
-	//	,NULL,"UserProcessInfo ProcessMsg from trade instance:%s",msg.c_str());
 	std::vector<std::string> items;
 	boost::algorithm::split(items,msg,boost::algorithm::is_any_of("#"));
 	//正常的数据
