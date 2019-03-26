@@ -5,6 +5,7 @@
 /////////////////////////////////////////////////////////////////////////
 
 #include "iconvpp.h"
+#include <string>
 
 std::string GBKToUTF8(const char* strGBK)
 {

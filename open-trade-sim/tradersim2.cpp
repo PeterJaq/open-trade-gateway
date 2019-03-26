@@ -164,6 +164,7 @@ void tradersim::OnClientReqInsertOrder(ActionOrder action_insert_order)
 	}
 	m_alive_order_set.insert(order);
 	UpdateOrder(order);
+	SaveUserDataFile();
 	return;
 }
 

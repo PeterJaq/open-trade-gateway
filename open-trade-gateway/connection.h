@@ -70,9 +70,7 @@ private:
 	boost::asio::io_context& m_ios;
 		
 	boost::beast::websocket::stream<boost::asio::ip::tcp::socket> m_ws_socket;
-
-	boost::asio::strand<boost::asio::io_context::executor_type> strand_;
-
+		
 	boost::beast::multi_buffer m_input_buffer;
 
 	boost::beast::multi_buffer m_output_buffer;

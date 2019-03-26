@@ -12,6 +12,8 @@ void SerializerTradeBase::DefineStruct(ReqLogin& d)
 	AddItem(d.bid, "bid");
 	AddItem(d.user_name, "user_name");
 	AddItem(d.password, "password");
+	AddItem(d.client_app_id, "client_app_id");
+	AddItem(d.client_system_info, "client_system_info");
 }
 
 void SerializerTradeBase::DefineStruct(Bank& d)

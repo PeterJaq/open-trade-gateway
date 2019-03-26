@@ -18,8 +18,7 @@ connection::connection(boost::asio::io_context& ios
 	connection_manager& manager,
 	int connection_id)
 	:m_ios(ios),
-	m_ws_socket(std::move(socket)),	
-	strand_(m_ws_socket.get_executor()),
+	m_ws_socket(std::move(socket)),		
 	m_input_buffer(),
 	m_output_buffer(),
 	connection_manager_(manager),	
@@ -32,12 +31,9 @@ connection::connection(boost::asio::io_context& ios
 void connection::start()
 {	
 	m_ws_socket.async_accept(
-		boost::asio::bind_executor(
-			strand_,
-			std::bind(
-				&connection::OnOpenConnection,
-				shared_from_this(),
-				std::placeholders::_1)));
+		boost::beast::bind_front_handler(
+			&connection::OnOpenConnection,
+			shared_from_this()));
 }
 
 void connection::stop()
@@ -49,12 +45,18 @@ void connection::OnOpenConnection(boost::system::error_code ec)
 {
 	if (ec)
 	{
-		Log(LOG_WARNING, NULL, "trade connection accept fail,session=%p", this);
+		Log(LOG_WARNING
+			, NULL
+			, "trade connection accept fail,session=%p"
+			, this);
 		return;
 	}
 
 	SendTextMsg(g_config.broker_list_str);
-
+	Log(LOG_INFO
+		, NULL
+		, "trade server got connection, session=%p"
+		, this);
 	DoRead();
 }
 
@@ -96,13 +98,9 @@ void connection::DoRead()
 {
 	m_ws_socket.async_read(
 		m_input_buffer,
-		boost::asio::bind_executor(
-			strand_,
-			std::bind(
-				&connection::OnRead,
-				shared_from_this(),
-				std::placeholders::_1,
-				std::placeholders::_2)));
+		boost::beast::bind_front_handler(
+			&connection::OnRead,
+			shared_from_this()));
 }
 
 void connection::OnRead(boost::system::error_code ec, std::size_t bytes_transferred)
@@ -111,8 +109,10 @@ void connection::OnRead(boost::system::error_code ec, std::size_t bytes_transfer
 	{
 		if (ec != boost::beast::websocket::error::closed)
 		{
-			Log(LOG_WARNING, NULL
-				, "trade connection read fail, session=%p", this);
+			Log(LOG_WARNING
+				, NULL
+				, "trade connection read fail, session=%p"
+				, this);
 		}
 		OnCloseConnection();
 		return;
@@ -161,6 +161,13 @@ void connection::ProcessLogInMessage(const ReqLogin& req, const std::string &jso
 	}
 
 	_reqLogin.broker = it->second;
+
+	//TODO::
+	//m_ws_socket.get_reque
+	//req.client_ip = get_request_header("X-Real-IP");
+	//this->
+
+	
 	std::string strBrokerType = _reqLogin.broker.broker_type;
 	_user_broker_key = strBrokerType + "_" + _reqLogin.bid + "_" + _reqLogin.user_name;
 	auto userIt = g_userProcessInfoMap.find(_user_broker_key);

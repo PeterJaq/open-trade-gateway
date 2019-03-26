@@ -68,6 +68,37 @@ bool UserProcessInfo::StartProcess()
 			}
 			return _process_ptr->running();
 		}
+		else if (_reqLogin.broker.broker_type == "ctpse")
+		{
+			std::string cmd = "ctpse_" + _reqLogin.bid + "_" + _reqLogin.user_name;
+
+			_out_mq_name = cmd + "_msg_out";
+			_in_mq_name = cmd + "_msg_in";
+
+			boost::interprocess::message_queue::remove(_out_mq_name.c_str());
+			boost::interprocess::message_queue::remove(_in_mq_name.c_str());
+
+			_out_mq_ptr = std::shared_ptr <boost::interprocess::message_queue>
+				(new boost::interprocess::message_queue(boost::interprocess::create_only
+					, _out_mq_name.c_str(), MAX_MSG_NUMS, MAX_MSG_LENTH));
+			_thread_ptr.reset();
+
+			_thread_ptr = std::shared_ptr<boost::thread>(
+				new boost::thread(boost::bind(&UserProcessInfo::ReceiveMsg_i, this)));
+
+			_in_mq_ptr = std::shared_ptr <boost::interprocess::message_queue>
+				(new boost::interprocess::message_queue(boost::interprocess::create_only
+					, _in_mq_name.c_str(), MAX_MSG_NUMS, MAX_MSG_LENTH));
+
+			_process_ptr = std::make_shared<boost::process::child>(boost::process::child(
+				boost::process::search_path("open-trade-ctpse")
+				, cmd.c_str()));
+			if (nullptr == _process_ptr)
+			{
+				return false;
+			}
+			return _process_ptr->running();
+		}
 		else if (_reqLogin.broker.broker_type == "sim")
 		{
 			std::string cmd = "sim_" + _reqLogin.bid + "_" + _reqLogin.user_name;

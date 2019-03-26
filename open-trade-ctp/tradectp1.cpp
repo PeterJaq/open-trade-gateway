@@ -162,7 +162,7 @@ void traderctp::SendLoginRequest()
 	strcpy_x(field.UserID, _req_login.user_name.c_str());
 	strcpy_x(field.Password, _req_login.password.c_str());
 	strcpy_x(field.UserProductInfo, _req_login.broker.product_info.c_str());
-	strcpy_x(field.LoginRemark, _req_login.client_addr.c_str());
+	strcpy_x(field.LoginRemark, _req_login.client_ip.c_str());
 	int ret = m_pTdApi->ReqUserLogin(&field,++_requestID);
 	if (0 != ret)
 	{

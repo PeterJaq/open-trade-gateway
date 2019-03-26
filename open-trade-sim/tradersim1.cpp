@@ -263,7 +263,7 @@ void tradersim::LoadUserDataFile()
 	if (m_user_file_path.empty())
 		return;
 
-	//选出最新的一个存档文件
+	//加载存档文件
 	std::string fn = m_user_file_path + "/" + m_user_id;
 
 	//加载存档文件
@@ -293,6 +293,7 @@ void tradersim::LoadUserDataFile()
 		{
 			Account& item = it->second;
 			item.pre_balance += (item.close_profit - item.commission + item.deposit - item.withdraw);
+			item.static_balance = item.pre_balance;
 			item.close_profit = 0;
 			item.commission = 0;
 			item.withdraw = 0;
