@@ -247,7 +247,11 @@ void UserProcessInfo::ProcessMsg(std::shared_ptr<std::string> msg_ptr)
 		for (auto strId : ids)
 		{
 			int nId = atoi(strId.c_str());
-			auto it = user_connections_.find(nId);			
+			auto it = user_connections_.find(nId);	
+			if (it == user_connections_.end())
+			{
+				continue;
+			}
 			connection_ptr conn_ptr = it->second;
 			if (nullptr != conn_ptr)
 			{
@@ -278,6 +282,10 @@ void UserProcessInfo::ProcessMsg(std::shared_ptr<std::string> msg_ptr)
 			{
 				int nId = atoi(strId.c_str());
 				auto it = user_connections_.find(nId);
+				if (it == user_connections_.end())
+				{
+					continue;
+				}
 				connection_ptr conn_ptr = it->second;
 				if (nullptr != conn_ptr)
 				{

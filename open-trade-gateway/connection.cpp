@@ -301,16 +301,24 @@ void connection::ProcessOtherMessage(const std::string &json_str)
 
 void connection::OnCloseConnection()
 {	
-	auto userIt = g_userProcessInfoMap.find(_user_broker_key);
-	if (userIt != g_userProcessInfoMap.end())
+	try
 	{
-		UserProcessInfo_ptr userProcessInfoPtr = userIt->second;
-		userProcessInfoPtr->user_connections_.erase(_connection_id);
-		if (userProcessInfoPtr->ProcessIsRunning())
-		{
-			userProcessInfoPtr->NotifyClose(_connection_id);
-		}
+		auto userIt = g_userProcessInfoMap.find(_user_broker_key);		
+		if (userIt != g_userProcessInfoMap.end())
+		{			
+			UserProcessInfo_ptr userProcessInfoPtr = userIt->second;
+			userProcessInfoPtr->user_connections_.erase(_connection_id);
+			if (userProcessInfoPtr->ProcessIsRunning())
+			{				
+				userProcessInfoPtr->NotifyClose(_connection_id);
+			}
+		}		
+		connection_manager_.stop(shared_from_this());		
+	}
+	catch (std::exception& ex)
+	{
+		Log(LOG_ERROR, NULL, "connection::OnCloseConnection():%s"
+			, ex.what());
 	}	
-	connection_manager_.stop(shared_from_this());
 }
 
