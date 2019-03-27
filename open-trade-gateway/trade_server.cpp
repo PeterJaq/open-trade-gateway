@@ -115,8 +115,8 @@ void trade_server::OnAccept(boost::system::error_code ec
 			, ec.message());
 		do_accept();
 		return;
-	}
-
+	}	
+	
 	connection_manager_.start(std::make_shared<connection>(
 		io_context_,std::move(socket), connection_manager_
 		,++_connection_id));

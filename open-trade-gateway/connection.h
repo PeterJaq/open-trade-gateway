@@ -67,6 +67,9 @@ private:
 
 	void OnCloseConnection();
 
+	void on_read_header(boost::beast::error_code ec
+		, std::size_t bytes_transferred);
+
 	boost::asio::io_context& m_ios;
 		
 	boost::beast::websocket::stream<boost::asio::ip::tcp::socket> m_ws_socket;
@@ -84,6 +87,14 @@ private:
 	std::string _user_broker_key;
 
 	std::string _login_msg;
+
+	boost::beast::flat_buffer flat_buffer_;
+
+	boost::beast::http::request<boost::beast::http::string_body> req_;	
+
+	std::string _X_Real_IP;
+
+	int _X_Real_Port;
 };
 
 typedef std::shared_ptr<connection> connection_ptr;

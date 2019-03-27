@@ -258,19 +258,21 @@ private:
 	void ReqAuthenticate();
 
 	void SendLoginRequest();
+	
+	void ReqQrySettlementInfoConfirm();
+
+	void ReqQrySettlementInfo();	
+
+	void ReqConfirmSettlement();	
 
 	void LoadFromFile();
 
 	void SaveToFile();
 
 	void AfterLogin();
-
-	void ReqConfirmSettlement();
-
+	
 	void ProcessQrySettlementInfo(std::shared_ptr<CThostFtdcSettlementInfoField> pSettlementInfo,bool bIsLast);
-
-	void ReqQrySettlementInfoConfirm();
-
+	
 	void ProcessQrySettlementInfoConfirm(std::shared_ptr<CThostFtdcSettlementInfoConfirmField> pSettlementInfoConfirm);
 
 	void ProcessRspOrderInsert(std::shared_ptr<CThostFtdcInputOrderField> pInputOrder
@@ -356,9 +358,7 @@ private:
 
 	void ReqQryBank();
 
-	void ReqQryAccountRegister();
-
-	void ReqQrySettlementInfo();
+	void ReqQryAccountRegister();	
 
 	bool NeedReset();
 

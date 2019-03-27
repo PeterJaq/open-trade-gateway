@@ -29,6 +29,11 @@ int main(int argc, char* argv[])
 
 	Log(LOG_INFO, NULL, "trade ctp init");
 
+	Log(LOG_INFO
+		, NULL
+		, "ctp version:%s"
+		, CThostFtdcTraderApi::GetApiVersion());
+
 	//加载配置文件
 	if (!LoadConfig())
 	{

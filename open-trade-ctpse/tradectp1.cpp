@@ -142,20 +142,80 @@ void traderctp::ReqAuthenticate()
 	strcpy_x(field.UserID, _req_login.user_name.c_str());
 	strcpy_x(field.UserProductInfo, _req_login.broker.product_info.c_str());
 	strcpy_x(field.AuthCode, _req_login.broker.auth_code.c_str());
+	strcpy_x(field.AppID,_req_login.broker.product_info.c_str());
 	int ret = m_pTdApi->ReqAuthenticate(&field,++_requestID);
+	Log(LOG_INFO, NULL
+		, "ctp ReqAuthenticate, instance=%p, UserProductInfo=%s, AuthCode=%s, ret=%d"
+		, this
+		, _req_login.broker.product_info.c_str()
+		, _req_login.broker.auth_code.c_str()
+		,ret);
 	if (0 != ret)
 	{
-		Log(LOG_INFO, NULL, "ctp ReqAuthenticate fail, instance=%p, ret=%d", this, ret);
 		boost::unique_lock<boost::mutex> lock(_logInmutex);
 		_logIn = false;
 		_logInCondition.notify_all();
 	}	
 }
 
+static std::string base64_decode(const std::string &in) 
+{
+	std::string out;
+	std::vector<int> T(256, -1);
+	for (int i = 0; i < 64; i++) T["ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[i]] = i;
+
+	int val = 0, valb = -8;
+	for (const char& c : in) 
+	{
+		if (T[c] == -1) break;
+		val = (val << 6) + T[c];
+		valb += 6;
+		if (valb >= 0) 
+		{
+			out.push_back(char((val >> valb) & 0xFF));
+			valb -= 8;
+		}
+	}
+	return out;
+}
+
 void traderctp::SendLoginRequest()
 {
 	long long now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 	m_req_login_dt.store(now);
+	//提交终端信息
+	if (!_req_login.client_system_info.empty())
+	{
+		CThostFtdcUserSystemInfoField f;
+		memset(&f, 0, sizeof(f));
+		strcpy_x(f.BrokerID, _req_login.broker.ctp_broker_id.c_str());
+		strcpy_x(f.UserID, _req_login.user_name.c_str());
+		///用户公网IP
+		strcpy_x(f.ClientPublicIP,_req_login.client_ip.c_str());
+		///终端IP端口
+		f.ClientIPPort = _req_login.client_port;
+		///登录成功时间
+		std::time_t t = now;
+		std::tm* tm = std::localtime(&t);
+		snprintf(f.ClientLoginTime, 9, "%02d:%02d:%02d", tm->tm_hour, tm->tm_min, tm->tm_sec);
+		std::string client_system_info = base64_decode(_req_login.client_system_info);
+		///用户端系统内部信息长度
+		f.ClientSystemInfoLen = client_system_info.size();
+		///用户端系统内部信息
+		memcpy(f.ClientSystemInfo,client_system_info.c_str(),client_system_info.size());
+		///App代码
+		strcpy_x(f.ClientAppID,_req_login.client_app_id.c_str());
+		int ret = m_pTdApi->RegisterUserSystemInfo(&f);		
+		Log(LOG_INFO
+			, NULL
+			, "ctp RegisterUserSystemInfo, instance=%p, UserID=%s, ClientSystemInfoLen=%d, base64=%s, ret=%d"
+			, this
+			, f.UserID
+			, client_system_info.size()
+			, _req_login.client_system_info.c_str()
+			, ret);
+	}
+
 	CThostFtdcReqUserLoginField field;
 	memset(&field, 0, sizeof(field));
 	strcpy_x(field.BrokerID, _req_login.broker.ctp_broker_id.c_str());

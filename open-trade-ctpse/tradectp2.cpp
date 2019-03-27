@@ -241,7 +241,7 @@ void traderctp::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 	ReqLogin req;
 	ss.ToVar(req);
 	if (req.aid == "req_login")
-	{
+	{		
 		ProcessReqLogIn(connId,req);
 	}
 	else

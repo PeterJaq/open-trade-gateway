@@ -11,6 +11,8 @@
 #include "SerializerTradeBase.h"
 #include "user_process_info.h"
 
+#include <iostream>
+
 TUserProcessInfoMap g_userProcessInfoMap;
 
 connection::connection(boost::asio::io_context& ios
@@ -24,16 +26,23 @@ connection::connection(boost::asio::io_context& ios
 	connection_manager_(manager),	
 	_connection_id(connection_id),	
 	_reqLogin(),	
-	_user_broker_key("")
-{	
+	_user_broker_key(""),
+	flat_buffer_(),
+	req_(),
+	_X_Real_IP(""),
+	_X_Real_Port(0)
+{		
 }
 
 void connection::start()
 {	
-	m_ws_socket.async_accept(
+	req_ = {};
+	boost::beast::http::async_read(m_ws_socket.next_layer()
+		,flat_buffer_
+		,req_,
 		boost::beast::bind_front_handler(
-			&connection::OnOpenConnection,
-			shared_from_this()));
+			&connection::on_read_header,
+			shared_from_this()));	
 }
 
 void connection::stop()
@@ -47,17 +56,56 @@ void connection::OnOpenConnection(boost::system::error_code ec)
 	{
 		Log(LOG_WARNING
 			, NULL
-			, "trade connection accept fail,session=%p"
-			, this);
+			, "trade connection accept fail,session=%p，msg=%s"
+			, this,ec.message().c_str());
+		OnCloseConnection();
 		return;
 	}
 
+	boost::asio::ip::tcp::endpoint remote_ep = m_ws_socket.next_layer().remote_endpoint();
+	_X_Real_IP = req_["X-Real-IP"].to_string();	
+	if (_X_Real_IP.empty())
+	{
+		_X_Real_IP = remote_ep.address().to_string();
+	}
+
+	std::string real_port = req_["X-Real-Port"].to_string();
+	if (real_port.empty())
+	{
+		_X_Real_Port=remote_ep.port();		
+	}
+	else
+	{
+		_X_Real_Port = atoi(real_port.c_str());
+	}
+			
 	SendTextMsg(g_config.broker_list_str);
 	Log(LOG_INFO
 		, NULL
 		, "trade server got connection, session=%p"
 		, this);
 	DoRead();
+}
+
+void connection::on_read_header(boost::beast::error_code ec
+	, std::size_t bytes_transferred)
+{
+	boost::ignore_unused(bytes_transferred);
+
+	if (ec == boost::beast::http::error::end_of_stream)
+	{
+		Log(LOG_WARNING
+			, NULL
+			, "connection on_read_header fail, msg=%s"
+			, ec.message());
+		OnCloseConnection();
+		return;
+	}
+	m_ws_socket.async_accept(
+		req_,
+		boost::beast::bind_front_handler(
+			&connection::OnOpenConnection,
+			shared_from_this()));
 }
 
 void connection::SendTextMsg(const std::string &msg)
@@ -117,6 +165,7 @@ void connection::OnRead(boost::system::error_code ec, std::size_t bytes_transfer
 		OnCloseConnection();
 		return;
 	}
+	
 	std::string strMsg = boost::beast::buffers_to_string(m_input_buffer.data());
 	m_input_buffer.consume(bytes_transferred);
 	OnMessage(strMsg);
@@ -149,7 +198,7 @@ void connection::OnMessage(const std::string &json_str)
 
 void connection::ProcessLogInMessage(const ReqLogin& req, const std::string &json_str)
 {
-	_login_msg = json_str;
+	_login_msg = json_str;	
 	_reqLogin = req;
 	auto it = g_config.brokers.find(_reqLogin.bid);
 	if (it == g_config.brokers.end())
@@ -161,13 +210,11 @@ void connection::ProcessLogInMessage(const ReqLogin& req, const std::string &jso
 	}
 
 	_reqLogin.broker = it->second;
-
-	//TODO::
-	//m_ws_socket.get_reque
-	//req.client_ip = get_request_header("X-Real-IP");
-	//this->
-
-	
+	_reqLogin.client_ip = _X_Real_IP;
+	_reqLogin.client_port = _X_Real_Port;
+	SerializerTradeBase nss;
+	nss.FromVar(_reqLogin);
+	nss.ToString(&_login_msg);
 	std::string strBrokerType = _reqLogin.broker.broker_type;
 	_user_broker_key = strBrokerType + "_" + _reqLogin.bid + "_" + _reqLogin.user_name;
 	auto userIt = g_userProcessInfoMap.find(_user_broker_key);
@@ -266,3 +313,4 @@ void connection::OnCloseConnection()
 	}	
 	connection_manager_.stop(shared_from_this());
 }
+
