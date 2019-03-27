@@ -244,6 +244,47 @@ void traderctp::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 	{		
 		ProcessReqLogIn(connId,req);
 	}
+	else if (req.aid == "change_password")
+	{
+		if (nullptr == m_pTdApi)
+		{
+			Log(LOG_ERROR
+				, NULL
+				, "trade ctp receive change_password msg before receive login msg!");
+			return;
+		}
+
+		if ((!m_b_login.load()) && (m_loging_connectId != connId))
+		{
+			Log(LOG_ERROR
+				, NULL
+				, "trade ctp receive change_password msg from a diffrent connection before login suceess!");
+			return;
+		}
+
+		m_loging_connectId = connId;
+
+		SerializerCtp ss;
+		if (!ss.FromString(msg.c_str()))
+		{
+			return;
+		}
+
+		rapidjson::Value* dt = rapidjson::Pointer("/aid").Get(*(ss.m_doc));
+		if (!dt || !dt->IsString())
+		{
+			return;
+		}
+
+		std::string aid = dt->GetString();
+		if (aid == "change_password")
+		{
+			CThostFtdcUserPasswordUpdateField f;
+			memset(&f, 0, sizeof(f));
+			ss.ToVar(f);
+			OnClientReqChangePassword(f);
+		}
+	}
 	else
 	{
 		if (!m_b_login)
@@ -299,14 +340,7 @@ void traderctp::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 		else if (aid == "confirm_settlement") 
 		{			
 			ReqConfirmSettlement();
-		}
-		else if (aid == "change_password") 
-		{
-			CThostFtdcUserPasswordUpdateField f;
-			memset(&f, 0, sizeof(f));
-			ss.ToVar(f);
-			OnClientReqChangePassword(f);
-		}
+		}		
 	}	
 }
 
@@ -517,6 +551,10 @@ void traderctp::ProcessReqLogIn(int connId,ReqLogin& req)
 		m_data.user_id = _req_login.user_name;
 		LoadFromFile();
 		m_loging_connectId = connId;
+		if (nullptr != m_pTdApi)
+		{
+			StopTdApi();
+		}
 		InitTdApi();	
 		bool login = WaitLogIn();
 		m_b_login.store(login);
@@ -540,8 +578,8 @@ void traderctp::ProcessReqLogIn(int connId,ReqLogin& req)
 		}
 		else
 		{
+			m_loging_connectId = connId;
 			OutputNotifySycn(connId,0,u8"用户登录失败!");
-			StopTdApi();			
 		}
 	}	
 }

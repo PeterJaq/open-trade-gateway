@@ -494,7 +494,7 @@ void traderctp::ProcessUserPasswordUpdateField(std::shared_ptr<CThostFtdcUserPas
 		return;
 	if (pRspInfo->ErrorID == 0)
 	{
-		OutputNotifyAllSycn(pRspInfo->ErrorID, u8"修改密码成功");
+		OutputNotifySycn(m_loging_connectId, pRspInfo->ErrorID, u8"修改密码成功");
 		if (_req_login.password == pUserPasswordUpdate->OldPassword)
 		{
 			_req_login.password = pUserPasswordUpdate->NewPassword;
@@ -502,7 +502,7 @@ void traderctp::ProcessUserPasswordUpdateField(std::shared_ptr<CThostFtdcUserPas
 	}
 	else
 	{
-		OutputNotifyAllSycn(pRspInfo->ErrorID
+		OutputNotifySycn(m_loging_connectId, pRspInfo->ErrorID
 			, u8"修改密码失败," + GBKToUTF8(pRspInfo->ErrorMsg)
 			, "WARNING");
 	}
