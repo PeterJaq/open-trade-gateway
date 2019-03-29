@@ -9,6 +9,8 @@
 
 #include <boost/algorithm/string.hpp>
 
+using namespace std::chrono;
+
 UserProcessInfo::UserProcessInfo(boost::asio::io_context& ios
 	, const ReqLogin& reqLogin)
 	:io_context_(ios)
@@ -19,8 +21,7 @@ UserProcessInfo::UserProcessInfo(boost::asio::io_context& ios
 	,_in_mq_name("")	
 	,_process_ptr()	
 	,user_connections_()
-	,_reqLogin(reqLogin)
-	,_str_packge_splited("")
+	,_reqLogin(reqLogin)	
 {
 }
 
@@ -206,19 +207,59 @@ void UserProcessInfo::NotifyClose(int connid)
 
 void UserProcessInfo::ReceiveMsg_i()
 {	
+	std::string _str_packge_splited="";
+	bool _packge_is_begin=false;
 	char buf[MAX_MSG_LENTH];
 	unsigned int priority;
+	long long now1 = 0;
+	long long now2 = 0;
 	boost::interprocess::message_queue::size_type recvd_size;
 	while (true)
 	{
 		try
 		{
 			memset(buf,0,sizeof(buf));
-			_out_mq_ptr->receive(buf, sizeof(buf), recvd_size, priority);			
-			std::shared_ptr<std::string> msg_ptr =
-				std::shared_ptr<std::string>(new std::string(buf));
-			io_context_.post(boost::bind(&UserProcessInfo::ProcessMsg
-				,this,msg_ptr));
+			_out_mq_ptr->receive(buf, sizeof(buf), recvd_size, priority);	
+			std::string msg(buf);
+			if (msg == BEGIN_OF_PACKAGE)
+			{
+				now1 =
+					duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+				_str_packge_splited = "";
+				_packge_is_begin = true;
+				continue;
+			}
+			else if (msg == END_OF_PACKAGE)
+			{
+				_packge_is_begin = false;
+				if (_str_packge_splited.length() > 0)
+				{
+					std::shared_ptr<std::string> msg_ptr =
+						std::shared_ptr<std::string>(new std::string(_str_packge_splited));
+					io_context_.post(boost::bind(&UserProcessInfo::ProcessMsg
+						, this,msg_ptr));					
+				}
+				now2 =duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+				int ms = static_cast<int>(now2 - now1);
+				Log(LOG_INFO, NULL, "UserProcessInfo::ReceiveMsg time:%d", ms);
+				continue;
+			}
+			else
+			{
+				if (_packge_is_begin)
+				{
+					_str_packge_splited += msg;
+					continue;
+				}
+				else
+				{
+					std::shared_ptr<std::string> msg_ptr =
+						std::shared_ptr<std::string>(new std::string(msg));
+					io_context_.post(boost::bind(&UserProcessInfo::ProcessMsg
+						, this, msg_ptr));
+					continue;
+				}
+			}			
 		}
 		catch (const std::exception& ex)
 		{
@@ -234,20 +275,22 @@ void UserProcessInfo::ProcessMsg(std::shared_ptr<std::string> msg_ptr)
 	{
 		return;
 	}
+
 	std::string msg = *msg_ptr;	
+
 	std::vector<std::string> items;
-	boost::algorithm::split(items,msg,boost::algorithm::is_any_of("#"));
+	boost::algorithm::split(items, msg, boost::algorithm::is_any_of("#"));
 	//正常的数据
-	if(2 == items.size())
+	if (2 == items.size())
 	{
 		std::string strIds = items[0];
 		std::string strMsg = items[1];
 		std::vector<std::string> ids;
-		boost::algorithm::split(ids,strIds,boost::algorithm::is_any_of("|"));
+		boost::algorithm::split(ids, strIds, boost::algorithm::is_any_of("|"));
 		for (auto strId : ids)
 		{
 			int nId = atoi(strId.c_str());
-			auto it = user_connections_.find(nId);	
+			auto it = user_connections_.find(nId);
 			if (it == user_connections_.end())
 			{
 				continue;
@@ -259,46 +302,11 @@ void UserProcessInfo::ProcessMsg(std::shared_ptr<std::string> msg_ptr)
 			}
 		}
 	}
-	else if (3 == items.size())
-	{
-		//分包数据
-		std::string strIds = items[0];
-		std::string strFlag = items[1];
-		std::string strMsg = items[2];
-		if (strFlag == "0")
-		{
-			_str_packge_splited += strMsg;
-			return;
-		}
-		else
-		{
-			_str_packge_splited += strMsg;
-			strMsg = _str_packge_splited;
-			_str_packge_splited = "";
-			
-			std::vector<std::string> ids;
-			boost::algorithm::split(ids,strIds, boost::algorithm::is_any_of("|"));
-			for (auto strId : ids)
-			{
-				int nId = atoi(strId.c_str());
-				auto it = user_connections_.find(nId);
-				if (it == user_connections_.end())
-				{
-					continue;
-				}
-				connection_ptr conn_ptr = it->second;
-				if (nullptr != conn_ptr)
-				{
-					conn_ptr->SendTextMsg(strMsg);
-				}
-			}
-		}		
-	}
 	else
 	{
 		Log(LOG_WARNING, NULL
-			,"UserProcessInfo receive invalid message from trade instance:%s!"
-			,msg.c_str());
+			, "UserProcessInfo receive invalid message from trade instance:%s!"
+			, msg.c_str());
 		return;
 	}
 }

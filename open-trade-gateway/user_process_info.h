@@ -50,9 +50,7 @@ struct UserProcessInfo
 
 	std::map<int, connection_ptr> user_connections_;
 
-	ReqLogin _reqLogin;
-
-	std::string _str_packge_splited;
+	ReqLogin _reqLogin;	
 };
 
 typedef std::shared_ptr<UserProcessInfo> UserProcessInfo_ptr;

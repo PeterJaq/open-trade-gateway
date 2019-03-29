@@ -51,13 +51,17 @@ public:
 
 	void SendTextMsg(const std::string &msg);
 private:	
-	void SendTextMsg_i(std::shared_ptr<std::string> msg_ptr);
+	void SendTextMsg_i(const std::string &msg);
 
 	void OnOpenConnection(boost::system::error_code ec);
 
 	void DoRead();
 
+	void DoWrite();
+
 	void OnRead(boost::system::error_code ec, std::size_t bytes_transferred);
+
+	void OnWrite(boost::system::error_code ec, std::size_t bytes_transferred);
 		
 	void OnMessage(const std::string &json_str);	
 
@@ -76,7 +80,7 @@ private:
 		
 	boost::beast::multi_buffer m_input_buffer;
 
-	boost::beast::multi_buffer m_output_buffer;
+	std::list<std::string> m_output_buffer;
 
 	connection_manager& connection_manager_;	
 

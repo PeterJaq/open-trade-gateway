@@ -13,6 +13,8 @@
 
 #include <iostream>
 
+using namespace std::chrono;
+
 TUserProcessInfoMap g_userProcessInfoMap;
 
 connection::connection(boost::asio::io_context& ios
@@ -110,36 +112,31 @@ void connection::on_read_header(boost::beast::error_code ec
 
 void connection::SendTextMsg(const std::string &msg)
 {
-	std::shared_ptr<std::string> msg_ptr =
-		std::make_shared<std::string>(std::string(msg));
-	m_ios.post(std::bind(&connection::SendTextMsg_i,this,msg_ptr));	
+	m_ios.post(std::bind(&connection::SendTextMsg_i,this, msg));
 }
 
-void connection::SendTextMsg_i(std::shared_ptr<std::string> msg_ptr)
+void connection::SendTextMsg_i(const std::string &msg)
 {
-	if (nullptr == msg_ptr)
+	if (m_output_buffer.size() > 0) 
 	{
-		return;
+		m_output_buffer.push_back(msg);
 	}
+	else 
+	{
+		m_output_buffer.push_back(msg);
+		DoWrite();
+	}
+}
 
-	std::string msg = *msg_ptr;	
-
-	size_t n = boost::asio::buffer_copy(m_output_buffer.prepare(msg.size())
-		, boost::asio::buffer(msg));
-	m_output_buffer.commit(n);
-
+void connection::DoWrite()
+{
+	auto write_buf = boost::asio::buffer(m_output_buffer.front());
 	m_ws_socket.text(true);
-	boost::system::error_code ec;
-	std::size_t bytes_transferred =
-		m_ws_socket.write(m_output_buffer.data(),ec);
-	if (ec)
-	{
-		Log(LOG_WARNING, NULL, "trade connection write fail:%s"
-			,ec.message());		
-		OnCloseConnection();
-		return;
-	}
-	m_output_buffer.consume(bytes_transferred);
+	m_ws_socket.async_write(
+		write_buf,
+		boost::beast::bind_front_handler(
+			&connection::OnWrite,
+			shared_from_this()));
 }
 
 void connection::DoRead()
@@ -170,6 +167,23 @@ void connection::OnRead(boost::system::error_code ec, std::size_t bytes_transfer
 	m_input_buffer.consume(bytes_transferred);
 	OnMessage(strMsg);
 	DoRead();
+}
+
+void connection::OnWrite(boost::system::error_code ec,std::size_t bytes_transferred)
+{
+	if (ec)
+	{
+		Log(LOG_WARNING, NULL, "trade server send message fail");
+	}		
+	else
+	{
+		Log(LOG_INFO, NULL, "trade server send message success, session=%p, len=%d", this, bytes_transferred);
+	}		
+	m_output_buffer.pop_front();
+	if (m_output_buffer.size() > 0) 
+	{
+		DoWrite();
+	}
 }
 
 void connection::OnMessage(const std::string &json_str)

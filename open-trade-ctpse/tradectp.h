@@ -217,6 +217,8 @@ private:
 
 	long long m_next_send_dt;
 
+	std::atomic_bool m_need_save_file;
+
 	void InitTdApi();
 
 	void StopTdApi();

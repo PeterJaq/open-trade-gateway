@@ -452,63 +452,6 @@ void tradersim::OnIdle()
 		SendUserData();
 	}
 }
-void tradersim::SendMsg(int connId,std::shared_ptr<std::string> msg_ptr)
-{
-	if (nullptr == msg_ptr)
-	{
-		return;
-	}
-
-	if (nullptr == _out_mq_ptr)
-	{
-		return;
-	}
-
-	std::string& msg = *msg_ptr;
-
-	int length = MAX_MSG_LENTH - 16;
-	if (msg.length() > length)
-	{
-		try
-		{
-			std::vector<std::string> vecs;
-			SplitString(msg, vecs, length);
-			int flag = 0;
-			for (int i = 0; i < vecs.size(); ++i)
-			{
-				//最后一个
-				if ((i + 1) == vecs.size())
-				{
-					flag = 1;
-				}
-				std::stringstream ss;
-				ss << connId << "#" << flag << "#" << vecs[i];
-				std::string str = ss.str();
-				_out_mq_ptr->send(str.c_str(), str.length(), 0);
-			}
-		}
-		catch (std::exception& ex)
-		{
-			Log(LOG_ERROR, NULL, "SendMsg Erro:%s,msg:%s,length:%d"
-				, ex.what(), msg.c_str(), msg.length());
-		}
-	}
-	else
-	{
-		try
-		{
-			std::stringstream ss;
-			ss << connId << "#" << msg;
-			std::string str = ss.str();
-			_out_mq_ptr->send(str.c_str(), str.length(), 0);
-		}
-		catch (std::exception& ex)
-		{
-			Log(LOG_ERROR, NULL, "SendMsg Erro:%s,msg:%s,length:%d"
-				, ex.what(), msg.c_str(), msg.length());
-		}
-	}
-}
 
 void tradersim::OutputNotifyAsych(int connId, long notify_code, const std::string& notify_msg
 	, const char* level, const char* type)
@@ -622,46 +565,107 @@ void tradersim::SendMsgAll(std::shared_ptr<std::string> msg_ptr)
 	}
 
 	std::string strIds = ss.str();
-	int length = MAX_MSG_LENTH - 16 - strIds.length();
-	if (msg.length() > length)
+	msg = strIds + "#" + msg;
+
+	size_t totalLength = msg.length();
+	if (totalLength > MAX_MSG_LENTH)
 	{
 		try
 		{
-			std::vector<std::string> vecs;
-			SplitString(msg, vecs, length);
-			int flag = 0;
-			for (int i = 0; i < vecs.size(); ++i)
+			_out_mq_ptr->send(BEGIN_OF_PACKAGE.c_str(), BEGIN_OF_PACKAGE.length(), 0);
+			const char* buffer = msg.c_str();
+			size_t start_pos = 0;
+			while (true)
 			{
-				//最后一个
-				if ((i + 1) == vecs.size())
+				if ((start_pos + MAX_MSG_LENTH) < totalLength)
 				{
-					flag = 1;
+					_out_mq_ptr->send(buffer + start_pos, MAX_MSG_LENTH, 0);
 				}
-				std::stringstream ss;
-				ss << strIds << "#" << flag << "#" << vecs[i];
-				std::string str = ss.str();
-				_out_mq_ptr->send(str.c_str(), str.length(), 0);
+				else
+				{
+					_out_mq_ptr->send(buffer + start_pos, totalLength - start_pos, 0);
+					break;
+				}
+				start_pos += MAX_MSG_LENTH;
 			}
+			_out_mq_ptr->send(END_OF_PACKAGE.c_str(), END_OF_PACKAGE.length(), 0);
 		}
 		catch (std::exception& ex)
 		{
-			Log(LOG_ERROR, NULL, "SendMsg Erro:%s,msg:%s,length:%d"
-				, ex.what(), msg.c_str(), msg.length());
+			Log(LOG_ERROR, NULL, "SendMsg Erro:%s,length:%d"
+				, ex.what(), msg.length());
 		}
 	}
 	else
 	{
 		try
 		{
-			std::stringstream ss;
-			ss << strIds << "#" << msg;
-			std::string str = ss.str();
-			_out_mq_ptr->send(str.c_str(), str.length(), 0);
+			_out_mq_ptr->send(msg.c_str(), totalLength, 0);
 		}
 		catch (std::exception& ex)
 		{
 			Log(LOG_ERROR, NULL, "SendMsg Erro:%s,msg:%s,length:%d"
-				, ex.what(), msg.c_str(), msg.length());
+				, ex.what(), msg.c_str(), totalLength);
+		}
+	}	
+}
+
+void tradersim::SendMsg(int connId, std::shared_ptr<std::string> msg_ptr)
+{
+	if (nullptr == msg_ptr)
+	{
+		return;
+	}
+
+	if (nullptr == _out_mq_ptr)
+	{
+		return;
+	}
+
+	std::string& msg = *msg_ptr;
+	std::stringstream ss;
+	ss << connId << "#";
+	msg = ss.str() + msg;
+
+	size_t totalLength = msg.length();
+	if (totalLength > MAX_MSG_LENTH)
+	{
+		try
+		{
+			_out_mq_ptr->send(BEGIN_OF_PACKAGE.c_str(), BEGIN_OF_PACKAGE.length(), 0);
+			const char* buffer = msg.c_str();
+			size_t start_pos = 0;
+			while (true)
+			{
+				if ((start_pos + MAX_MSG_LENTH) < totalLength)
+				{
+					_out_mq_ptr->send(buffer + start_pos, MAX_MSG_LENTH, 0);
+				}
+				else
+				{
+					_out_mq_ptr->send(buffer + start_pos, totalLength - start_pos, 0);
+					break;
+				}
+				start_pos += MAX_MSG_LENTH;
+			}
+			_out_mq_ptr->send(END_OF_PACKAGE.c_str(), END_OF_PACKAGE.length(), 0);			
+		}
+		catch (std::exception& ex)
+		{
+			Log(LOG_ERROR, NULL, "SendMsg Erro:%s,length:%d"
+				, ex.what(), msg.length());
+		}
+	}
+	else
+	{
+		try
+		{
+			_out_mq_ptr->send(msg.c_str(), totalLength, 0);
+		}
+		catch (std::exception& ex)
+		{
+			Log(LOG_ERROR, NULL, "SendMsg Erro:%s,msg:%s,length:%d"
+				, ex.what(), msg.c_str(), totalLength);
 		}
 	}
 }

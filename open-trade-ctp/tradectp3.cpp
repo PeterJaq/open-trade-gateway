@@ -12,7 +12,11 @@
 #include "ins_list.h"
 #include "numset.h"
 
+#include <fstream>
+
 using namespace trader_dll;
+
+using namespace std::chrono;
 
 void traderctp::LoadFromFile()
 {
@@ -59,8 +63,6 @@ void traderctp::SaveToFile()
 	s.ToFile(fn.c_str());	
 }
 
-using namespace std::chrono;
-
 bool traderctp::NeedReset()
 {
 	if (m_req_login_dt == 0)
@@ -73,6 +75,12 @@ bool traderctp::NeedReset()
 
 void traderctp::OnIdle()
 {
+	if (m_need_save_file.load())
+	{
+		this->SaveToFile();
+		m_need_save_file.store(false);
+	}
+
 	//有空的时候, 标记为需查询的项, 如果离上次查询时间够远, 应该发起查询
 	long long now = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 	if (m_peeking_message && (m_next_send_dt < now))
@@ -217,6 +225,12 @@ TransferLog& traderctp::GetTransferLog(const std::string& seq_id)
 
 void traderctp::SendUserDataImd(int connectId)
 {
+	static int nFileId = 0;
+	Log(LOG_INFO, NULL,"SendUserDataImd m_orders size() :%d"
+		, m_data.m_orders.size());
+
+	long long now1 = 
+		duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 	//构建数据包		
 	SerializerTradeBase nss;
 	nss.dump_all = true;
@@ -229,11 +243,19 @@ void traderctp::SendUserDataImd(int connectId)
 	node_user.SetObject();
 	node_user.AddMember(node_user_id, node_data, nss.m_doc->GetAllocator());
 	rapidjson::Pointer("/data/0/trade").Set(*nss.m_doc, node_user);
+		
 	std::string json_str;
 	nss.ToString(&json_str);	
 	//发送	
 	std::shared_ptr<std::string> msg_ptr(new std::string(json_str));
 	_ios_out.post(boost::bind(&traderctp::SendMsg,this,connectId,msg_ptr));	
+	long long now2 =
+		duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+	int ms = static_cast<int>(now2- now1);
+	Log(LOG_INFO, NULL, "SendUserDataImd time:%d",ms);
+
+	Log(LOG_INFO, NULL, "SendUserDataImd json_str length:%d"
+		, json_str.length());	
 }
 
 void traderctp::SendUserData()

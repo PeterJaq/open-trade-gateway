@@ -42,6 +42,10 @@ const int MAX_MSG_NUMS = 100;
 
 const int MAX_MSG_LENTH = 1024;
 
+const std::string BEGIN_OF_PACKAGE = "#BEGIN_OF_PACKAGE#";
+
+const std::string END_OF_PACKAGE = "#END_OF_PACKAGE#";
+
 struct Instrument
 {
 	Instrument()

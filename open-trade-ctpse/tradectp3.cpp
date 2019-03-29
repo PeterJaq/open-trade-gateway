@@ -73,6 +73,12 @@ bool traderctp::NeedReset()
 
 void traderctp::OnIdle()
 {
+	if (m_need_save_file.load())
+	{
+		this->SaveToFile();
+		m_need_save_file.store(false);
+	}
+
 	//有空的时候, 标记为需查询的项, 如果离上次查询时间够远, 应该发起查询
 	long long now = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 	if (m_peeking_message && (m_next_send_dt < now))
