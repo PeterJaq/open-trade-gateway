@@ -662,7 +662,7 @@ void traderctp::ProcessRspOrderInsert(std::shared_ptr<CThostFtdcInputOrderField>
 		m_something_changed = true;
 		SendUserData();
 		OutputNotifyAllSycn(pRspInfo->ErrorID
-			,u8"下单失败," + GBKToUTF8(pRspInfo->ErrorMsg), "WARNING");
+			,u8"下单失败" + GBKToUTF8(pRspInfo->ErrorMsg), "WARNING");
 	}	
 }
 
@@ -723,7 +723,7 @@ void traderctp::ProcessErrRtnOrderInsert(std::shared_ptr<CThostFtdcInputOrderFie
 		if (it != m_input_order_key_map.end())
 		{
 			OutputNotifyAllSycn(pRspInfo->ErrorID
-				, u8"下单失败," + GBKToUTF8(pRspInfo->ErrorMsg),"WARNING");
+				, u8"下单失败" + GBKToUTF8(pRspInfo->ErrorMsg),"WARNING");
 			m_input_order_key_map.erase(it);			
 		}		
 	}
