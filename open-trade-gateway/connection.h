@@ -51,7 +51,7 @@ public:
 
 	void SendTextMsg(const std::string &msg);
 private:	
-	void SendTextMsg_i(const std::string &msg);
+	void SendTextMsg_i(std::shared_ptr<std::string> msg_ptr);
 
 	void OnOpenConnection(boost::system::error_code ec);
 

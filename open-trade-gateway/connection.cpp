@@ -112,11 +112,19 @@ void connection::on_read_header(boost::beast::error_code ec
 
 void connection::SendTextMsg(const std::string &msg)
 {
-	m_ios.post(std::bind(&connection::SendTextMsg_i,this, msg));
+	std::shared_ptr<std::string> msg_ptr =
+		std::shared_ptr<std::string>(new std::string(msg));
+	m_ios.post(std::bind(&connection::SendTextMsg_i,this,msg_ptr));
 }
 
-void connection::SendTextMsg_i(const std::string &msg)
+void connection::SendTextMsg_i(std::shared_ptr<std::string> msg_ptr)
 {
+	if (nullptr == msg_ptr)
+	{
+		return;
+	}
+
+	std::string& msg = *msg_ptr;
 	if (m_output_buffer.size() > 0) 
 	{
 		m_output_buffer.push_back(msg);
