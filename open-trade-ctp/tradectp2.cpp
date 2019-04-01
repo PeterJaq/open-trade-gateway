@@ -324,7 +324,6 @@ void traderctp::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 		}
 		else if (aid == "insert_order") 
 		{
-			Log(LOG_INFO, NULL, "insert_order msg:%s",msg.c_str());
 			CtpActionInsertOrder d;
 			ss.ToVar(d);
 			OnClientReqInsertOrder(d);
@@ -460,19 +459,7 @@ void traderctp::OnClientReqInsertOrder(CtpActionInsertOrder d)
 		OutputNotifyAllSycn(1,GBKToUTF8("报单单号重复，不能下单"),"WARNING");
 		return;
 	}
-
-	Log(LOG_INFO, NULL, "insert_order local key userid:%s,orderid:%s"
-		, d.local_key.user_id.c_str(), d.local_key.order_id.c_str());
-
-	Log(LOG_INFO, NULL
-		, "insert_order RemoteOrderKey exchange_id:%s,instrument_id:%s,session_id:%d,front_id:%d,order_ref:%s,order_sys_id:%s"
-		, rkey.exchange_id.c_str()
-		, rkey.instrument_id.c_str()
-		, rkey.session_id
-		, rkey.front_id
-		, rkey.order_ref.c_str()
-		, rkey.order_sys_id.c_str());
-
+	
 	strcpy_x(d.f.OrderRef,rkey.order_ref.c_str());
 	{		
 		m_insert_order_set.insert(d.f.OrderRef);

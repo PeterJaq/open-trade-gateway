@@ -457,7 +457,7 @@ void traderctp::OnClientReqInsertOrder(CtpActionInsertOrder d)
 		OutputNotifyAllSycn(1,GBKToUTF8("报单单号重复，不能下单"),"WARNING");
 		return;
 	}
-
+	
 	strcpy_x(d.f.OrderRef,rkey.order_ref.c_str());
 	{		
 		m_insert_order_set.insert(d.f.OrderRef);
