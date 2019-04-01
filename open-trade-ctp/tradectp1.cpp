@@ -404,7 +404,7 @@ void  traderctp::ProcessQrySettlementInfo(std::shared_ptr<CThostFtdcSettlementIn
 		m_need_query_settlement.store(false);
 		std::string str= GBKToUTF8(pSettlementInfo->Content);
 		m_settlement_info += str;
-		OutputNotifyAllSycn(++m_notify_seq,m_settlement_info,"INFO","SETTLEMENT");		
+		OutputNotifyAllSycn(0,m_settlement_info,"INFO","SETTLEMENT");		
 	}
 	else
 	{
@@ -553,116 +553,128 @@ void traderctp::ProcessRspOrderInsert(std::shared_ptr<CThostFtdcInputOrderField>
 		, pRspInfo ? pRspInfo->ErrorID : -999);
 	if (pRspInfo && pRspInfo->ErrorID != 0)
 	{
-		//找到委托单
-		RemoteOrderKey remote_key;
-		remote_key.exchange_id = pInputOrder->ExchangeID;
-		remote_key.instrument_id = pInputOrder->InstrumentID;
-		remote_key.front_id = m_front_id;
-		remote_key.session_id = m_session_id;
-		remote_key.order_ref = pInputOrder->OrderRef;
+		std::stringstream ss;
+		ss << m_front_id << m_session_id << pInputOrder->OrderRef;
+		std::string strKey = ss.str();
+		auto it = m_input_order_key_map.find(strKey);
+		if (it != m_input_order_key_map.end())
+		{
+			//找到委托单
+			RemoteOrderKey remote_key;
+			remote_key.exchange_id = pInputOrder->ExchangeID;
+			remote_key.instrument_id = pInputOrder->InstrumentID;
+			remote_key.front_id = m_front_id;
+			remote_key.session_id = m_session_id;
+			remote_key.order_ref = pInputOrder->OrderRef;
+			
+			LocalOrderKey local_key;
+			OrderIdRemoteToLocal(remote_key, &local_key);
+					   
+			Order& order = GetOrder(local_key.order_id);
 
-		LocalOrderKey local_key;
-		OrderIdRemoteToLocal(remote_key, &local_key);
-		Order& order = GetOrder(local_key.order_id);
-		//委托单初始属性(由下单者在下单前确定, 不再改变)
-		order.seqno = 0;
-		order.user_id = local_key.user_id;
-		order.order_id = local_key.order_id;
-		order.exchange_id = pInputOrder->ExchangeID;
-		order.instrument_id = pInputOrder->InstrumentID;
-		switch (pInputOrder->Direction)
-		{
-		case THOST_FTDC_D_Buy:
-			order.direction = kDirectionBuy;
-			break;
-		case THOST_FTDC_D_Sell:
-			order.direction = kDirectionSell;
-			break;
-		default:
-			break;
+			//委托单初始属性(由下单者在下单前确定, 不再改变)
+			order.seqno = 0;
+			order.user_id = local_key.user_id;
+			order.order_id = local_key.order_id;
+			order.exchange_id = pInputOrder->ExchangeID;
+			order.instrument_id = pInputOrder->InstrumentID;
+			switch (pInputOrder->Direction)
+			{
+			case THOST_FTDC_D_Buy:
+				order.direction = kDirectionBuy;
+				break;
+			case THOST_FTDC_D_Sell:
+				order.direction = kDirectionSell;
+				break;
+			default:
+				break;
+			}
+			switch (pInputOrder->CombOffsetFlag[0])
+			{
+			case THOST_FTDC_OF_Open:
+				order.offset = kOffsetOpen;
+				break;
+			case THOST_FTDC_OF_CloseToday:
+				order.offset = kOffsetCloseToday;
+				break;
+			case THOST_FTDC_OF_Close:
+			case THOST_FTDC_OF_CloseYesterday:
+			case THOST_FTDC_OF_ForceOff:
+			case THOST_FTDC_OF_LocalForceClose:
+				order.offset = kOffsetClose;
+				break;
+			default:
+				break;
+			}
+			order.volume_orign = pInputOrder->VolumeTotalOriginal;
+			switch (pInputOrder->OrderPriceType)
+			{
+			case THOST_FTDC_OPT_AnyPrice:
+				order.price_type = kPriceTypeAny;
+				break;
+			case THOST_FTDC_OPT_LimitPrice:
+				order.price_type = kPriceTypeLimit;
+				break;
+			case THOST_FTDC_OPT_BestPrice:
+				order.price_type = kPriceTypeBest;
+				break;
+			case THOST_FTDC_OPT_FiveLevelPrice:
+				order.price_type = kPriceTypeFiveLevel;
+				break;
+			default:
+				break;
+			}
+			order.limit_price = pInputOrder->LimitPrice;
+			switch (pInputOrder->TimeCondition)
+			{
+			case THOST_FTDC_TC_IOC:
+				order.time_condition = kOrderTimeConditionIOC;
+				break;
+			case THOST_FTDC_TC_GFS:
+				order.time_condition = kOrderTimeConditionGFS;
+				break;
+			case THOST_FTDC_TC_GFD:
+				order.time_condition = kOrderTimeConditionGFD;
+				break;
+			case THOST_FTDC_TC_GTD:
+				order.time_condition = kOrderTimeConditionGTD;
+				break;
+			case THOST_FTDC_TC_GTC:
+				order.time_condition = kOrderTimeConditionGTC;
+				break;
+			case THOST_FTDC_TC_GFA:
+				order.time_condition = kOrderTimeConditionGFA;
+				break;
+			default:
+				break;
+			}
+			switch (pInputOrder->VolumeCondition)
+			{
+			case THOST_FTDC_VC_AV:
+				order.volume_condition = kOrderVolumeConditionAny;
+				break;
+			case THOST_FTDC_VC_MV:
+				order.volume_condition = kOrderVolumeConditionMin;
+				break;
+			case THOST_FTDC_VC_CV:
+				order.volume_condition = kOrderVolumeConditionAll;
+				break;
+			default:
+				break;
+			}
+			//委托单当前状态
+			order.volume_left = pInputOrder->VolumeTotalOriginal;
+			order.status = kOrderStatusFinished;
+			order.last_msg = GBKToUTF8(pRspInfo->ErrorMsg);
+			order.changed = true;
+			m_something_changed = true;
+			SendUserData();
+
+			OutputNotifyAllSycn(pRspInfo->ErrorID
+				, u8"下单失败," + GBKToUTF8(pRspInfo->ErrorMsg), "WARNING");
+
+			m_input_order_key_map.erase(it);
 		}
-		switch (pInputOrder->CombOffsetFlag[0])
-		{
-		case THOST_FTDC_OF_Open:
-			order.offset = kOffsetOpen;
-			break;
-		case THOST_FTDC_OF_CloseToday:
-			order.offset = kOffsetCloseToday;
-			break;
-		case THOST_FTDC_OF_Close:
-		case THOST_FTDC_OF_CloseYesterday:
-		case THOST_FTDC_OF_ForceOff:
-		case THOST_FTDC_OF_LocalForceClose:
-			order.offset = kOffsetClose;
-			break;
-		default:
-			break;
-		}
-		order.volume_orign = pInputOrder->VolumeTotalOriginal;
-		switch (pInputOrder->OrderPriceType)
-		{
-		case THOST_FTDC_OPT_AnyPrice:
-			order.price_type = kPriceTypeAny;
-			break;
-		case THOST_FTDC_OPT_LimitPrice:
-			order.price_type = kPriceTypeLimit;
-			break;
-		case THOST_FTDC_OPT_BestPrice:
-			order.price_type = kPriceTypeBest;
-			break;
-		case THOST_FTDC_OPT_FiveLevelPrice:
-			order.price_type = kPriceTypeFiveLevel;
-			break;
-		default:
-			break;
-		}
-		order.limit_price = pInputOrder->LimitPrice;
-		switch (pInputOrder->TimeCondition)
-		{
-		case THOST_FTDC_TC_IOC:
-			order.time_condition = kOrderTimeConditionIOC;
-			break;
-		case THOST_FTDC_TC_GFS:
-			order.time_condition = kOrderTimeConditionGFS;
-			break;
-		case THOST_FTDC_TC_GFD:
-			order.time_condition = kOrderTimeConditionGFD;
-			break;
-		case THOST_FTDC_TC_GTD:
-			order.time_condition = kOrderTimeConditionGTD;
-			break;
-		case THOST_FTDC_TC_GTC:
-			order.time_condition = kOrderTimeConditionGTC;
-			break;
-		case THOST_FTDC_TC_GFA:
-			order.time_condition = kOrderTimeConditionGFA;
-			break;
-		default:
-			break;
-		}
-		switch (pInputOrder->VolumeCondition)
-		{
-		case THOST_FTDC_VC_AV:
-			order.volume_condition = kOrderVolumeConditionAny;
-			break;
-		case THOST_FTDC_VC_MV:
-			order.volume_condition = kOrderVolumeConditionMin;
-			break;
-		case THOST_FTDC_VC_CV:
-			order.volume_condition = kOrderVolumeConditionAll;
-			break;
-		default:
-			break;
-		}
-		//委托单当前状态
-		order.volume_left = pInputOrder->VolumeTotalOriginal;
-		order.status = kOrderStatusFinished;
-		order.last_msg = GBKToUTF8(pRspInfo->ErrorMsg);
-		order.changed = true;
-		m_something_changed = true;
-		SendUserData();
-		OutputNotifyAllSycn(pRspInfo->ErrorID
-			,u8"下单失败" + GBKToUTF8(pRspInfo->ErrorMsg), "WARNING");
 	}	
 }
 
@@ -714,8 +726,13 @@ void traderctp::OnRspOrderAction(CThostFtdcInputOrderActionField* pInputOrderAct
 void traderctp::ProcessErrRtnOrderInsert(std::shared_ptr<CThostFtdcInputOrderField> pInputOrder,
 	std::shared_ptr<CThostFtdcRspInfoField> pRspInfo)
 {	
+	Log(LOG_INFO, NULL, "ctp ProcessErrRtnOrderInsert, instance=%p, UserID=%s, ErrorID=%d"
+		, this
+		, _req_login.user_name.c_str()
+		, pRspInfo ? pRspInfo->ErrorID : -999);
+
 	if (pInputOrder && pRspInfo && pRspInfo->ErrorID != 0)
-	{
+	{		
 		std::stringstream ss;
 		ss << m_front_id << m_session_id << pInputOrder->OrderRef;
 		std::string strKey = ss.str();
@@ -723,7 +740,125 @@ void traderctp::ProcessErrRtnOrderInsert(std::shared_ptr<CThostFtdcInputOrderFie
 		if (it != m_input_order_key_map.end())
 		{
 			OutputNotifyAllSycn(pRspInfo->ErrorID
-				, u8"下单失败" + GBKToUTF8(pRspInfo->ErrorMsg),"WARNING");
+				, u8"下单失败," + GBKToUTF8(pRspInfo->ErrorMsg),"WARNING");
+
+			//找到委托单
+			RemoteOrderKey remote_key;
+			remote_key.exchange_id = pInputOrder->ExchangeID;
+			remote_key.instrument_id = pInputOrder->InstrumentID;
+			remote_key.front_id = m_front_id;
+			remote_key.session_id = m_session_id;
+			remote_key.order_ref = pInputOrder->OrderRef;
+
+			LocalOrderKey local_key;
+			OrderIdRemoteToLocal(remote_key, &local_key);
+
+			Order& order = GetOrder(local_key.order_id);
+
+			//委托单初始属性(由下单者在下单前确定, 不再改变)
+			order.seqno = 0;
+			order.user_id = local_key.user_id;
+			order.order_id = local_key.order_id;
+			order.exchange_id = pInputOrder->ExchangeID;
+			order.instrument_id = pInputOrder->InstrumentID;
+
+			switch (pInputOrder->Direction)
+			{
+			case THOST_FTDC_D_Buy:
+				order.direction = kDirectionBuy;
+				break;
+			case THOST_FTDC_D_Sell:
+				order.direction = kDirectionSell;
+				break;
+			default:
+				break;
+			}
+
+			switch (pInputOrder->CombOffsetFlag[0])
+			{
+			case THOST_FTDC_OF_Open:
+				order.offset = kOffsetOpen;
+				break;
+			case THOST_FTDC_OF_CloseToday:
+				order.offset = kOffsetCloseToday;
+				break;
+			case THOST_FTDC_OF_Close:
+			case THOST_FTDC_OF_CloseYesterday:
+			case THOST_FTDC_OF_ForceOff:
+			case THOST_FTDC_OF_LocalForceClose:
+				order.offset = kOffsetClose;
+				break;
+			default:
+				break;
+			}
+
+			order.volume_orign = pInputOrder->VolumeTotalOriginal;
+			switch (pInputOrder->OrderPriceType)
+			{
+			case THOST_FTDC_OPT_AnyPrice:
+				order.price_type = kPriceTypeAny;
+				break;
+			case THOST_FTDC_OPT_LimitPrice:
+				order.price_type = kPriceTypeLimit;
+				break;
+			case THOST_FTDC_OPT_BestPrice:
+				order.price_type = kPriceTypeBest;
+				break;
+			case THOST_FTDC_OPT_FiveLevelPrice:
+				order.price_type = kPriceTypeFiveLevel;
+				break;
+			default:
+				break;
+			}
+
+			order.limit_price = pInputOrder->LimitPrice;
+			switch (pInputOrder->TimeCondition)
+			{
+			case THOST_FTDC_TC_IOC:
+				order.time_condition = kOrderTimeConditionIOC;
+				break;
+			case THOST_FTDC_TC_GFS:
+				order.time_condition = kOrderTimeConditionGFS;
+				break;
+			case THOST_FTDC_TC_GFD:
+				order.time_condition = kOrderTimeConditionGFD;
+				break;
+			case THOST_FTDC_TC_GTD:
+				order.time_condition = kOrderTimeConditionGTD;
+				break;
+			case THOST_FTDC_TC_GTC:
+				order.time_condition = kOrderTimeConditionGTC;
+				break;
+			case THOST_FTDC_TC_GFA:
+				order.time_condition = kOrderTimeConditionGFA;
+				break;
+			default:
+				break;
+			}
+
+			switch (pInputOrder->VolumeCondition)
+			{
+			case THOST_FTDC_VC_AV:
+				order.volume_condition = kOrderVolumeConditionAny;
+				break;
+			case THOST_FTDC_VC_MV:
+				order.volume_condition = kOrderVolumeConditionMin;
+				break;
+			case THOST_FTDC_VC_CV:
+				order.volume_condition = kOrderVolumeConditionAll;
+				break;
+			default:
+				break;
+			}
+
+			//委托单当前状态
+			order.volume_left = pInputOrder->VolumeTotalOriginal;
+			order.status = kOrderStatusFinished;
+			order.last_msg = GBKToUTF8(pRspInfo->ErrorMsg);
+			order.changed = true;
+			m_something_changed = true;
+			SendUserData();
+			
 			m_input_order_key_map.erase(it);			
 		}		
 	}
