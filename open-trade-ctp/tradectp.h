@@ -114,6 +114,10 @@ public:
 
 	///交易通知
 	virtual void OnRtnTradingNotice(CThostFtdcTradingNoticeInfoField *pTradingNoticeInfo);
+
+	///请求查询经纪公司交易参数响应
+	virtual void OnRspQryBrokerTradingParams(CThostFtdcBrokerTradingParamsField *pBrokerTradingParams
+		, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast);
 private:
 	std::atomic_bool m_b_login;
 
@@ -219,6 +223,10 @@ private:
 
 	std::atomic_bool m_need_save_file;
 
+	std::atomic_bool m_need_query_broker_trading_params;
+
+	TThostFtdcAlgorithmType m_Algorithm_Type;
+
 	void InitTdApi();
 
 	void StopTdApi();
@@ -321,6 +329,9 @@ private:
 	void ProcessQryTradingAccount(std::shared_ptr<CThostFtdcTradingAccountField> pRspInvestorAccount,
 		std::shared_ptr<CThostFtdcRspInfoField> pRspInfo, int nRequestID, bool bIsLast);
 
+	void ProcessQryBrokerTradingParams(std::shared_ptr<CThostFtdcBrokerTradingParamsField> pBrokerTradingParams,
+		std::shared_ptr<CThostFtdcRspInfoField> pRspInfo, int nRequestID, bool bIsLast);
+
 	void ProcessQryContractBank(std::shared_ptr<CThostFtdcContractBankField> pContractBank,
 		std::shared_ptr<CThostFtdcRspInfoField> pRspInfo, int nRequestID, bool bIsLast);
 
@@ -351,6 +362,8 @@ private:
 	void OnClientReqChangePassword(CThostFtdcUserPasswordUpdateField f);
 
 	void OnIdle();
+
+	int ReqQryBrokerTradingParams();
 
 	int ReqQryAccount(int reqid);
 

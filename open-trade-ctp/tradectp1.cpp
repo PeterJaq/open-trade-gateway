@@ -1032,6 +1032,31 @@ void traderctp::OnRspQryInvestorPosition(CThostFtdcInvestorPositionField* pInves
 	
 }
 
+void traderctp::ProcessQryBrokerTradingParams(std::shared_ptr<CThostFtdcBrokerTradingParamsField> pBrokerTradingParams,
+	std::shared_ptr<CThostFtdcRspInfoField> pRspInfo, int nRequestID, bool bIsLast)
+{
+	if (bIsLast)
+	{
+		m_need_query_broker_trading_params.store(false);
+	}
+
+	Log(LOG_INFO, NULL
+		, "traderctp ProcessQryBrokerTradingParams, instance=%p, UserID=%s, ErrorID=%d"
+		, this
+		, _req_login.user_name.c_str()
+		, pRspInfo ? pRspInfo->ErrorID : -999);
+
+	if (!pBrokerTradingParams)
+	{
+		return;
+	}
+
+	Log(LOG_INFO, NULL
+		, "BrokerTradingParams Algorithm:%d"
+		, pBrokerTradingParams->Algorithm);
+	m_Algorithm_Type = pBrokerTradingParams->Algorithm;	
+}
+
 void traderctp::ProcessQryTradingAccount(std::shared_ptr<CThostFtdcTradingAccountField> pRspInvestorAccount,
 	std::shared_ptr<CThostFtdcRspInfoField> pRspInfo, int nRequestID, bool bIsLast)
 {
@@ -1049,38 +1074,53 @@ void traderctp::ProcessQryTradingAccount(std::shared_ptr<CThostFtdcTradingAccoun
 	if (!pRspInvestorAccount)
 	{
 		return;
-	}
-			
+	}	
+
 	Account& account = GetAccount(pRspInvestorAccount->CurrencyID);
 
 	//账号及币种
 	account.user_id = pRspInvestorAccount->AccountID;
-	account.currency = pRspInvestorAccount->CurrencyID;
+
+	account.currency = pRspInvestorAccount->CurrencyID;	
 	//本交易日开盘前状态
-	account.pre_balance = pRspInvestorAccount->PreBalance;
+	account.pre_balance = pRspInvestorAccount->PreBalance;	
+	
 	//本交易日内已发生事件的影响
-	account.deposit = pRspInvestorAccount->Deposit;
-	account.withdraw = pRspInvestorAccount->Withdraw;
-	account.close_profit = pRspInvestorAccount->CloseProfit;
-	account.commission = pRspInvestorAccount->Commission;
-	account.premium = pRspInvestorAccount->CashIn;
+	account.deposit = pRspInvestorAccount->Deposit;	
+	
+	account.withdraw = pRspInvestorAccount->Withdraw;	
+	
+	account.close_profit = pRspInvestorAccount->CloseProfit;	
+	
+	account.commission = pRspInvestorAccount->Commission;	
+	
+	account.premium = pRspInvestorAccount->CashIn;	
+	
 	account.static_balance = pRspInvestorAccount->PreBalance 
 		- pRspInvestorAccount->PreCredit
 		- pRspInvestorAccount->PreMortgage 
 		+ pRspInvestorAccount->Mortgage
 		- pRspInvestorAccount->Withdraw 
-		+ pRspInvestorAccount->Deposit;
+		+ pRspInvestorAccount->Deposit;	
+	
 	//当前持仓盈亏
 	account.position_profit = pRspInvestorAccount->PositionProfit;
+	
 	account.float_profit = 0;
 	//当前权益
-	account.balance = pRspInvestorAccount->Balance;
+	account.balance = pRspInvestorAccount->Balance;	
+	
 	//保证金占用, 冻结及风险度
-	account.margin = pRspInvestorAccount->CurrMargin;
+	account.margin = pRspInvestorAccount->CurrMargin;	
+	
 	account.frozen_margin = pRspInvestorAccount->FrozenMargin;
-	account.frozen_commission = pRspInvestorAccount->FrozenCommission;
+	
+	account.frozen_commission = pRspInvestorAccount->FrozenCommission;	
+	
 	account.frozen_premium = pRspInvestorAccount->FrozenCash;
-	account.available = pRspInvestorAccount->Available;
+	
+	account.available = pRspInvestorAccount->Available;	
+	
 	account.changed = true;
 	if (bIsLast) 
 	{
@@ -1105,6 +1145,27 @@ void traderctp::OnRspQryTradingAccount(CThostFtdcTradingAccountField* pRspInvest
 	}
 
 	_ios.post(boost::bind(&traderctp::ProcessQryTradingAccount, this
+		, ptr1, ptr2, nRequestID, bIsLast));
+}
+
+void traderctp::OnRspQryBrokerTradingParams(CThostFtdcBrokerTradingParamsField 
+	*pBrokerTradingParams, CThostFtdcRspInfoField *pRspInfo
+	, int nRequestID, bool bIsLast)
+{
+	std::shared_ptr<CThostFtdcBrokerTradingParamsField> ptr1 = nullptr;
+	if (nullptr != pBrokerTradingParams)
+	{
+		ptr1 = std::make_shared<CThostFtdcBrokerTradingParamsField>
+			(CThostFtdcBrokerTradingParamsField(*pBrokerTradingParams));
+	}
+
+	std::shared_ptr<CThostFtdcRspInfoField> ptr2 = nullptr;
+	if (nullptr != pRspInfo)
+	{
+		ptr2 = std::make_shared<CThostFtdcRspInfoField>(CThostFtdcRspInfoField(*pRspInfo));
+	}
+
+	_ios.post(boost::bind(&traderctp::ProcessQryBrokerTradingParams, this
 		, ptr1, ptr2, nRequestID, bIsLast));
 }
 
