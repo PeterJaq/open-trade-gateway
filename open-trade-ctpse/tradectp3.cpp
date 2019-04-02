@@ -104,6 +104,13 @@ void traderctp::OnIdle()
 		return;
 	}
 
+	if (m_need_query_broker_trading_params)
+	{
+		ReqQryBrokerTradingParams();
+		m_next_qry_dt = now + 1100;
+		return;
+	}
+
 	if (m_req_account_id > m_rsp_account_id) 
 	{
 		ReqQryAccount(m_req_account_id);
@@ -131,6 +138,24 @@ void traderctp::OnIdle()
 		m_next_qry_dt = now + 1100;
 		return;
 	}
+}
+
+int traderctp::ReqQryBrokerTradingParams()
+{
+	CThostFtdcQryBrokerTradingParamsField field;
+	memset(&field, 0, sizeof(field));
+	strcpy_x(field.BrokerID, m_broker_id.c_str());
+	strcpy_x(field.InvestorID, _req_login.user_name.c_str());
+	int r = m_pTdApi->ReqQryBrokerTradingParams(&field, 0);
+	if (0 != r)
+	{
+		Log(LOG_INFO, NULL
+			, "ctp ReqQryBrokerTradingParams, instance=%p, InvestorID=%s, ret=%d"
+			, this
+			, field.InvestorID
+			, r);
+	}
+	return r;
 }
 
 int traderctp::ReqQryAccount(int reqid)
@@ -223,6 +248,113 @@ TransferLog& traderctp::GetTransferLog(const std::string& seq_id)
 
 void traderctp::SendUserDataImd(int connectId)
 {
+	//重算所有持仓项的持仓盈亏和浮动盈亏
+	double total_position_profit = 0;
+	double total_float_profit = 0;
+	for (auto it = m_data.m_positions.begin();
+		it != m_data.m_positions.end(); ++it)
+	{
+		const std::string& symbol = it->first;
+		Position& ps = it->second;
+		if (nullptr == ps.ins)
+		{
+			ps.ins = GetInstrument(symbol);
+		}
+		if (nullptr == ps.ins)
+		{
+			Log(LOG_ERROR, NULL, "ctp miss symbol %s when processing position, instance=%p"
+				, symbol.c_str(), this);
+			continue;
+		}
+		ps.volume_long = ps.volume_long_his + ps.volume_long_today;
+		ps.volume_short = ps.volume_short_his + ps.volume_short_today;
+		ps.volume_long_frozen = ps.volume_long_frozen_today + ps.volume_long_frozen_his;
+		ps.volume_short_frozen = ps.volume_short_frozen_today + ps.volume_short_frozen_his;
+		ps.margin = ps.margin_long + ps.margin_short;
+		double last_price = ps.ins->last_price;
+		if (!IsValid(last_price))
+			last_price = ps.ins->pre_settlement;
+		if (IsValid(last_price) && (last_price != ps.last_price || ps.changed))
+		{
+			ps.last_price = last_price;
+			ps.position_profit_long = ps.last_price * ps.volume_long * ps.ins->volume_multiple - ps.position_cost_long;
+			ps.position_profit_short = ps.position_cost_short - ps.last_price * ps.volume_short * ps.ins->volume_multiple;
+			ps.position_profit = ps.position_profit_long + ps.position_profit_short;
+			ps.float_profit_long = ps.last_price * ps.volume_long * ps.ins->volume_multiple - ps.open_cost_long;
+			ps.float_profit_short = ps.open_cost_short - ps.last_price * ps.volume_short * ps.ins->volume_multiple;
+			ps.float_profit = ps.float_profit_long + ps.float_profit_short;
+			if (ps.volume_long > 0)
+			{
+				ps.open_price_long = ps.open_cost_long / (ps.volume_long * ps.ins->volume_multiple);
+				ps.position_price_long = ps.position_cost_long / (ps.volume_long * ps.ins->volume_multiple);
+			}
+			if (ps.volume_short > 0)
+			{
+				ps.open_price_short = ps.open_cost_short / (ps.volume_short * ps.ins->volume_multiple);
+				ps.position_price_short = ps.position_cost_short / (ps.volume_short * ps.ins->volume_multiple);
+			}
+			ps.changed = true;
+			m_something_changed = true;
+		}
+		if (IsValid(ps.position_profit))
+			total_position_profit += ps.position_profit;
+		if (IsValid(ps.float_profit))
+			total_float_profit += ps.float_profit;
+	}
+
+	//重算资金账户
+	if (m_something_changed)
+	{
+		Account& acc = GetAccount("CNY");
+		double dv = total_position_profit - acc.position_profit;
+		double po_ori = 0;
+		double po_curr = 0;
+		double av_diff = 0;
+		switch (m_Algorithm_Type)
+		{
+		case THOST_FTDC_AG_All:
+			po_ori = acc.position_profit;
+			po_curr = total_position_profit;
+			break;
+		case THOST_FTDC_AG_OnlyLost:
+			if (acc.position_profit < 0)
+			{
+				po_ori = acc.position_profit;
+			}
+			if (total_position_profit < 0)
+			{
+				po_curr = total_position_profit;
+			}
+			break;
+		case THOST_FTDC_AG_OnlyGain:
+			if (acc.position_profit > 0)
+			{
+				po_ori = acc.position_profit;
+			}
+			if (total_position_profit > 0)
+			{
+				po_curr = total_position_profit;
+			}
+			break;
+		case THOST_FTDC_AG_None:
+			po_ori = 0;
+			po_curr = 0;
+			break;
+		default:
+			break;
+		}
+		av_diff = po_curr - po_ori;
+		acc.position_profit = total_position_profit;
+		acc.float_profit = total_float_profit;
+		acc.available += av_diff;
+		acc.balance += dv;
+		if (IsValid(acc.available) && IsValid(acc.balance) && !IsZero(acc.balance))
+			acc.risk_ratio = 1.0 - acc.available / acc.balance;
+		else
+			acc.risk_ratio = NAN;
+		acc.changed = true;
+	}
+
 	//构建数据包		
 	SerializerTradeBase nss;
 	nss.dump_all = true;
@@ -311,11 +443,48 @@ void traderctp::SendUserData()
 	//重算资金账户
 	if (m_something_changed)
 	{
-		Account& acc = GetAccount("CNY");
-		double dv = total_position_profit - acc.position_profit;
+		Account& acc = GetAccount("CNY");		
+		double dv = total_position_profit - acc.position_profit;		
+		double po_ori = 0;
+		double po_curr = 0;
+		double av_diff = 0;
+		switch (m_Algorithm_Type)
+		{
+		case THOST_FTDC_AG_All:
+			po_ori = acc.position_profit;
+			po_curr = total_position_profit;
+			break;
+		case THOST_FTDC_AG_OnlyLost:
+			if (acc.position_profit < 0)
+			{
+				po_ori = acc.position_profit;
+			}
+			if (total_position_profit < 0)
+			{
+				po_curr = total_position_profit;
+			}
+			break;
+		case THOST_FTDC_AG_OnlyGain:
+			if (acc.position_profit > 0)
+			{
+				po_ori = acc.position_profit;
+			}
+			if (total_position_profit > 0)
+			{
+				po_curr = total_position_profit;
+			}
+			break;
+		case THOST_FTDC_AG_None:
+			po_ori = 0;
+			po_curr = 0;
+			break;
+		default:
+			break;
+		}
+		av_diff = po_curr - po_ori;
 		acc.position_profit = total_position_profit;
 		acc.float_profit = total_float_profit;
-		acc.available += dv;
+		acc.available += av_diff;
 		acc.balance += dv;
 		if (IsValid(acc.available) && IsValid(acc.balance) && !IsZero(acc.balance))
 			acc.risk_ratio = 1.0 - acc.available / acc.balance;
@@ -365,4 +534,5 @@ void traderctp::AfterLogin()
 	m_req_account_id++;
 	m_need_query_bank.store(true);
 	m_need_query_register.store(true);
+	m_need_query_broker_trading_params.store(true);
 }

@@ -310,29 +310,43 @@ void traderctp::SendUserDataImd(int connectId)
 	{
 		Account& acc = GetAccount("CNY");
 		double dv = total_position_profit - acc.position_profit;		
+		double po_ori = 0;
+		double po_curr = 0;
 		double av_diff = 0;
 		switch (m_Algorithm_Type)
 		{
 		case THOST_FTDC_AG_All:
-			av_diff = dv;
+			po_ori = acc.position_profit;
+			po_curr = total_position_profit;
 			break;
 		case THOST_FTDC_AG_OnlyLost:
-			if (dv < 0)
+			if (acc.position_profit < 0)
 			{
-				av_diff = dv;
+				po_ori = acc.position_profit;
+			}
+			if (total_position_profit < 0)
+			{
+				po_curr = total_position_profit;
 			}
 			break;
 		case THOST_FTDC_AG_OnlyGain:
-			if (dv > 0)
+			if (acc.position_profit > 0)
 			{
-				av_diff = dv;
+				po_ori = acc.position_profit;
+			}
+			if (total_position_profit > 0)
+			{
+				po_curr = total_position_profit;
 			}
 			break;
 		case THOST_FTDC_AG_None:
-			av_diff = 0;
+			po_ori = 0;
+			po_curr = 0;
+			break;
 		default:
 			break;
 		}
+		av_diff = po_curr - po_ori;
 		acc.position_profit = total_position_profit;
 		acc.float_profit = total_float_profit;
 		acc.available += av_diff;
@@ -435,29 +449,43 @@ void traderctp::SendUserData()
 	{
 		Account& acc = GetAccount("CNY");
 		double dv = total_position_profit - acc.position_profit;		
+		double po_ori = 0;
+		double po_curr = 0;
 		double av_diff = 0;
 		switch (m_Algorithm_Type)
 		{
 		case THOST_FTDC_AG_All:
-			av_diff = dv;
+			po_ori = acc.position_profit;
+			po_curr = total_position_profit;
 			break;
 		case THOST_FTDC_AG_OnlyLost:
-			if (dv < 0)
+			if (acc.position_profit < 0)
 			{
-				av_diff = dv;
+				po_ori = acc.position_profit;
+			}
+			if (total_position_profit < 0)
+			{
+				po_curr = total_position_profit;
 			}
 			break;
 		case THOST_FTDC_AG_OnlyGain:
-			if (dv > 0)
+			if (acc.position_profit > 0)
 			{
-				av_diff = dv;
+				po_ori = acc.position_profit;
+			}
+			if (total_position_profit > 0)
+			{
+				po_curr = total_position_profit;
 			}
 			break;
 		case THOST_FTDC_AG_None:
-			av_diff = 0;
+			po_ori = 0;
+			po_curr = 0;
+			break;
 		default:
 			break;
 		}
+		av_diff = po_curr - po_ori;
 		acc.position_profit = total_position_profit;
 		acc.float_profit = total_float_profit;
 		acc.available += av_diff;

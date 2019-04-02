@@ -1119,8 +1119,12 @@ void traderctp::ProcessQryTradingAccount(std::shared_ptr<CThostFtdcTradingAccoun
 	
 	account.frozen_premium = pRspInvestorAccount->FrozenCash;
 	
-	account.available = pRspInvestorAccount->Available;	
-	
+	account.available = pRspInvestorAccount->Available;
+
+	Log(LOG_INFO, NULL
+		, "available ctp return:%f"
+		, account.available);
+
 	account.changed = true;
 	if (bIsLast) 
 	{

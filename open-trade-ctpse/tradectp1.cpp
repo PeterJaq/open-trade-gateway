@@ -1092,6 +1092,52 @@ void traderctp::OnRspQryInvestorPosition(CThostFtdcInvestorPositionField* pInves
 	
 }
 
+void traderctp::ProcessQryBrokerTradingParams(std::shared_ptr<CThostFtdcBrokerTradingParamsField> pBrokerTradingParams,
+	std::shared_ptr<CThostFtdcRspInfoField> pRspInfo, int nRequestID, bool bIsLast)
+{
+	if (bIsLast)
+	{
+		m_need_query_broker_trading_params.store(false);
+	}
+
+	Log(LOG_INFO, NULL
+		, "traderctp ProcessQryBrokerTradingParams, instance=%p, UserID=%s, ErrorID=%d"
+		, this
+		, _req_login.user_name.c_str()
+		, pRspInfo ? pRspInfo->ErrorID : -999);
+
+	if (!pBrokerTradingParams)
+	{
+		return;
+	}
+
+	Log(LOG_INFO, NULL
+		, "BrokerTradingParams Algorithm:%d"
+		, pBrokerTradingParams->Algorithm);
+	m_Algorithm_Type = pBrokerTradingParams->Algorithm;
+}
+
+void traderctp::OnRspQryBrokerTradingParams(CThostFtdcBrokerTradingParamsField
+	*pBrokerTradingParams, CThostFtdcRspInfoField *pRspInfo
+	, int nRequestID, bool bIsLast)
+{
+	std::shared_ptr<CThostFtdcBrokerTradingParamsField> ptr1 = nullptr;
+	if (nullptr != pBrokerTradingParams)
+	{
+		ptr1 = std::make_shared<CThostFtdcBrokerTradingParamsField>
+			(CThostFtdcBrokerTradingParamsField(*pBrokerTradingParams));
+	}
+
+	std::shared_ptr<CThostFtdcRspInfoField> ptr2 = nullptr;
+	if (nullptr != pRspInfo)
+	{
+		ptr2 = std::make_shared<CThostFtdcRspInfoField>(CThostFtdcRspInfoField(*pRspInfo));
+	}
+
+	_ios.post(boost::bind(&traderctp::ProcessQryBrokerTradingParams, this
+		, ptr1, ptr2, nRequestID, bIsLast));
+}
+
 void traderctp::ProcessQryTradingAccount(std::shared_ptr<CThostFtdcTradingAccountField> pRspInvestorAccount,
 	std::shared_ptr<CThostFtdcRspInfoField> pRspInfo, int nRequestID, bool bIsLast)
 {
