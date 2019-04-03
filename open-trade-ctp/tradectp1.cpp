@@ -1,4 +1,4 @@
-﻿/////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////
 ///@file tradectp1.cpp
 ///@brief	CTP交易逻辑实现
 ///@copyright	上海信易信息科技股份有限公司 版权所有
@@ -227,13 +227,17 @@ void traderctp::OnRspAuthenticate(CThostFtdcRspAuthenticateField *pRspAuthentica
 	//还在等待登录阶段
 	if (!m_b_login.load())
 	{
-		if (!pRspInfo && pRspInfo->ErrorID != 0)
+		if ((nullptr != pRspInfo) && (pRspInfo->ErrorID != 0))
 		{
-			Log(LOG_WARNING, NULL, "ctp OnRspAuthenticate,instance=%p,UserID=%s,ErrorID=%d,ErrMsg=%s"
-				, this,_req_login.user_name.c_str()
+			Log(LOG_WARNING, NULL, "ctp OnRspAuthenticate 1,instance=%p,UserID=%s,ErrorID=%d,ErrMsg=%s"
+				, this, _req_login.user_name.c_str()
 				, pRspInfo ? pRspInfo->ErrorID : -999
 				, pRspInfo ? GBKToUTF8(pRspInfo->ErrorMsg).c_str() : ""
 			);
+			OutputNotifySycn(m_loging_connectId
+				, pRspInfo->ErrorID,
+				u8"交易服务器认证失败," + GBKToUTF8(pRspInfo->ErrorMsg), "WARNING");
+
 			boost::unique_lock<boost::mutex> lock(_logInmutex);
 			_logIn = false;
 			_logInCondition.notify_all();
@@ -241,6 +245,11 @@ void traderctp::OnRspAuthenticate(CThostFtdcRspAuthenticateField *pRspAuthentica
 		}
 		else
 		{
+			Log(LOG_WARNING, NULL, "ctp OnRspAuthenticate 2,instance=%p,UserID=%s,ErrorID=%d,ErrMsg=%s"
+				, this, _req_login.user_name.c_str()
+				, pRspInfo ? pRspInfo->ErrorID : -999
+				, pRspInfo ? GBKToUTF8(pRspInfo->ErrorMsg).c_str() : ""
+			);
 			SendLoginRequest();
 		}		
 	}

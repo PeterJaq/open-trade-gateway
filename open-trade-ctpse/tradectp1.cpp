@@ -1,4 +1,4 @@
-﻿/////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////
 ///@file tradectp1.cpp
 ///@brief	CTP交易逻辑实现
 ///@copyright	上海信易信息科技股份有限公司 版权所有
@@ -181,6 +181,10 @@ static std::string base64_decode(const std::string &in)
 
 void traderctp::SendLoginRequest()
 {
+	Log(LOG_INFO, NULL
+		, "SendLoginRequest, client_system_info=%s, client_app_id=%s"
+		, _req_login.client_system_info.c_str(),
+		_req_login.client_app_id.c_str());
 	long long now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 	m_req_login_dt.store(now);
 	//提交终端信息
@@ -191,7 +195,7 @@ void traderctp::SendLoginRequest()
 		strcpy_x(f.BrokerID, _req_login.broker.ctp_broker_id.c_str());
 		strcpy_x(f.UserID, _req_login.user_name.c_str());
 		///用户公网IP
-		strcpy_x(f.ClientPublicIP,_req_login.client_ip.c_str());
+		strcpy_x(f.ClientPublicIP, _req_login.client_ip.c_str());
 		///终端IP端口
 		f.ClientIPPort = _req_login.client_port;
 		///登录成功时间
@@ -202,10 +206,10 @@ void traderctp::SendLoginRequest()
 		///用户端系统内部信息长度
 		f.ClientSystemInfoLen = client_system_info.size();
 		///用户端系统内部信息
-		memcpy(f.ClientSystemInfo,client_system_info.c_str(),client_system_info.size());
+		memcpy(f.ClientSystemInfo, client_system_info.c_str(), client_system_info.size());
 		///App代码
-		strcpy_x(f.ClientAppID,_req_login.client_app_id.c_str());
-		int ret = m_pTdApi->RegisterUserSystemInfo(&f);		
+		strcpy_x(f.ClientAppID, _req_login.client_app_id.c_str());
+		int ret = m_pTdApi->RegisterUserSystemInfo(&f);
 		Log(LOG_INFO
 			, NULL
 			, "ctp RegisterUserSystemInfo, instance=%p, UserID=%s, ClientSystemInfoLen=%d, base64=%s, ret=%d"
@@ -214,25 +218,54 @@ void traderctp::SendLoginRequest()
 			, client_system_info.size()
 			, _req_login.client_system_info.c_str()
 			, ret);
+		if (0 != ret)
+		{
+			boost::unique_lock<boost::mutex> lock(_logInmutex);
+			_logIn = false;
+			_logInCondition.notify_all();
+			return;
+		}
+		else
+		{
+			CThostFtdcReqUserLoginField field;
+			memset(&field, 0, sizeof(field));
+			strcpy_x(field.BrokerID, _req_login.broker.ctp_broker_id.c_str());
+			strcpy_x(field.UserID, _req_login.user_name.c_str());
+			strcpy_x(field.Password, _req_login.password.c_str());
+			strcpy_x(field.UserProductInfo, _req_login.broker.product_info.c_str());
+			strcpy_x(field.LoginRemark, _req_login.client_ip.c_str());
+			int ret = m_pTdApi->ReqUserLogin(&field, ++_requestID);
+			if (0 != ret)
+			{
+				Log(LOG_INFO, NULL,
+					"ctp ReqUserLogin fail, instance=%p, UserID=%s, LoginRemark=%s, ret=%d"
+					, this, field.UserID, field.LoginRemark, ret);
+				boost::unique_lock<boost::mutex> lock(_logInmutex);
+				_logIn = false;
+				_logInCondition.notify_all();
+			}
+		}
 	}
-
-	CThostFtdcReqUserLoginField field;
-	memset(&field, 0, sizeof(field));
-	strcpy_x(field.BrokerID, _req_login.broker.ctp_broker_id.c_str());
-	strcpy_x(field.UserID, _req_login.user_name.c_str());
-	strcpy_x(field.Password, _req_login.password.c_str());
-	strcpy_x(field.UserProductInfo, _req_login.broker.product_info.c_str());
-	strcpy_x(field.LoginRemark, _req_login.client_ip.c_str());
-	int ret = m_pTdApi->ReqUserLogin(&field,++_requestID);
-	if (0 != ret)
+	else
 	{
-		Log(LOG_INFO, NULL,
-			"ctp ReqUserLogin fail, instance=%p, UserID=%s, LoginRemark=%s, ret=%d"
-			, this, field.UserID, field.LoginRemark,ret);
-		boost::unique_lock<boost::mutex> lock(_logInmutex);
-		_logIn = false;
-		_logInCondition.notify_all();
-	}	
+		CThostFtdcReqUserLoginField field;
+		memset(&field, 0, sizeof(field));
+		strcpy_x(field.BrokerID, _req_login.broker.ctp_broker_id.c_str());
+		strcpy_x(field.UserID, _req_login.user_name.c_str());
+		strcpy_x(field.Password, _req_login.password.c_str());
+		strcpy_x(field.UserProductInfo, _req_login.broker.product_info.c_str());
+		strcpy_x(field.LoginRemark, _req_login.client_ip.c_str());
+		int ret = m_pTdApi->ReqUserLogin(&field, ++_requestID);
+		if (0 != ret)
+		{
+			Log(LOG_INFO, NULL,
+				"ctp ReqUserLogin fail, instance=%p, UserID=%s, LoginRemark=%s, ret=%d"
+				, this, field.UserID, field.LoginRemark, ret);
+			boost::unique_lock<boost::mutex> lock(_logInmutex);
+			_logIn = false;
+			_logInCondition.notify_all();
+		}
+	}
 }
 
 void traderctp::ProcessOnFrontDisconnected(int nReason)
@@ -242,7 +275,7 @@ void traderctp::ProcessOnFrontDisconnected(int nReason)
 		, this
 		, nReason
 		, _req_login.user_name.c_str());
-	OutputNotifyAllSycn(1,u8"已经断开与交易前置的连接");
+	OutputNotifyAllSycn(1, u8"已经断开与交易前置的连接");
 }
 
 void traderctp::OnFrontDisconnected(int nReason)
@@ -255,30 +288,30 @@ void traderctp::OnFrontDisconnected(int nReason)
 			, this
 			, nReason
 			, _req_login.user_name.c_str());
-		OutputNotifySycn(m_loging_connectId,1,u8"已经断开与交易前置的连接");
+		OutputNotifySycn(m_loging_connectId, 1, u8"已经断开与交易前置的连接");
 	}
 	else
 	{
 		//这时不能直接调用
 		_ios.post(boost::bind(&traderctp::ProcessOnFrontDisconnected
-			,this,nReason));
+			, this, nReason));
 	}
 }
 
 void traderctp::ProcessOnRspAuthenticate(std::shared_ptr<CThostFtdcRspInfoField> pRspInfo)
 {
-	if ((nullptr!=pRspInfo) && (pRspInfo->ErrorID != 0))
+	if ((nullptr != pRspInfo) && (pRspInfo->ErrorID != 0))
 	{
 		Log(LOG_WARNING, NULL, "ctp OnRspAuthenticate,instance=%p,UserID=%s,ErrorID=%d,ErrMsg=%s"
-			,this,_req_login.user_name.c_str()
-			,pRspInfo ? pRspInfo->ErrorID : -999
-			,pRspInfo ? GBKToUTF8(pRspInfo->ErrorMsg).c_str() : "");
+			, this, _req_login.user_name.c_str()
+			, pRspInfo ? pRspInfo->ErrorID : -999
+			, pRspInfo ? GBKToUTF8(pRspInfo->ErrorMsg).c_str() : "");
 		return;
 	}
 	else
 	{
 		SendLoginRequest();
-	}	
+	}
 }
 
 void traderctp::OnRspAuthenticate(CThostFtdcRspAuthenticateField *pRspAuthenticateField
@@ -287,20 +320,29 @@ void traderctp::OnRspAuthenticate(CThostFtdcRspAuthenticateField *pRspAuthentica
 	//还在等待登录阶段
 	if (!m_b_login.load())
 	{
-		if (!pRspInfo && pRspInfo->ErrorID != 0)
+		if ((nullptr != pRspInfo) && (pRspInfo->ErrorID != 0))
 		{
-			Log(LOG_WARNING, NULL, "ctp OnRspAuthenticate,instance=%p,UserID=%s,ErrorID=%d,ErrMsg=%s"
-				, this,_req_login.user_name.c_str()
+			Log(LOG_WARNING, NULL, "ctp OnRspAuthenticate 1,instance=%p,UserID=%s,ErrorID=%d,ErrMsg=%s"
+				, this, _req_login.user_name.c_str()
 				, pRspInfo ? pRspInfo->ErrorID : -999
 				, pRspInfo ? GBKToUTF8(pRspInfo->ErrorMsg).c_str() : ""
 			);
+			OutputNotifySycn(m_loging_connectId
+				, pRspInfo->ErrorID,
+				u8"交易服务器认证失败," + GBKToUTF8(pRspInfo->ErrorMsg), "WARNING");
+
 			boost::unique_lock<boost::mutex> lock(_logInmutex);
 			_logIn = false;
 			_logInCondition.notify_all();
-			return;
+			return;				
 		}
 		else
 		{
+			Log(LOG_WARNING, NULL, "ctp OnRspAuthenticate 2,instance=%p,UserID=%s,ErrorID=%d,ErrMsg=%s"
+				, this, _req_login.user_name.c_str()
+				, pRspInfo ? pRspInfo->ErrorID : -999
+				, pRspInfo ? GBKToUTF8(pRspInfo->ErrorMsg).c_str() : ""
+			);
 			SendLoginRequest();
 		}		
 	}

@@ -1,4 +1,4 @@
-﻿/////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////
 ///@file tradectp2.cpp
 ///@brief	CTP交易逻辑实现
 ///@copyright	上海信易信息科技股份有限公司 版权所有
@@ -546,6 +546,12 @@ void traderctp::ProcessReqLogIn(int connId,ReqLogin& req)
 	else
 	{
 		_req_login = req;
+
+		Log(LOG_INFO, NULL
+			, "_req_login, client_system_info=%s, client_app_id=%s"
+			, _req_login.client_system_info.c_str(),
+			_req_login.client_app_id.c_str());
+
 		auto it = g_config.brokers.find(_req_login.bid);
 		_req_login.broker = it->second;
 
