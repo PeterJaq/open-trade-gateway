@@ -599,8 +599,19 @@ bool traderctp::WaitLogIn()
 {
 	boost::unique_lock<boost::mutex> lock(_logInmutex);
 	_logIn = false;
-	m_pTdApi->Init();	
-	_logInCondition.timed_wait(lock, boost::posix_time::seconds(15));
+	m_pTdApi->Init();
+	bool notify = _logInCondition.timed_wait(lock, boost::posix_time::seconds(15));
+	if (!_logIn)
+	{
+		if (!notify)
+		{
+			Log(LOG_WARNING
+				, NULL
+				, "CTP登录超时,可能是交易前置配置错误,请检查配置文件,bid:%s,username:%s"
+				, _req_login.bid.c_str()
+				, _req_login.user_name.c_str());
+		}		
+	}
 	return _logIn;
 }
 

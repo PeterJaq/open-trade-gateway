@@ -200,7 +200,7 @@ void connection::OnMessage(const std::string &json_str)
 	if (!ss.FromString(json_str.c_str()))
 	{
 		Log(LOG_WARNING, NULL
-			, "connection recieve invalid diff data package:"
+			, "connection recieve invalid diff data package:%s"
 			, json_str.c_str());
 		return;
 	}
@@ -210,6 +210,10 @@ void connection::OnMessage(const std::string &json_str)
 
 	if (req.aid == "req_login")
 	{
+		Log(LOG_INFO, NULL
+			, "req_login client_system_info:%s,client_app_id:%s"
+			, req.client_system_info.c_str()
+		, req.client_app_id.c_str());
 		ProcessLogInMessage(req, json_str);
 	}
 	else
