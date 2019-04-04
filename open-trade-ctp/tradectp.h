@@ -389,4 +389,6 @@ private:
 	void ProcessOnErrRtnBankToFutureByFuture(std::shared_ptr<CThostFtdcRspInfoField> pRspInfo);
 
 	void ProcessOnRtnTradingNotice(std::shared_ptr<CThostFtdcTradingNoticeInfoField> pTradingNoticeInfo);
+
+	void ReinitCtp();
 };

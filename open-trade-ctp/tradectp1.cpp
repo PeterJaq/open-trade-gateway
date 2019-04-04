@@ -275,7 +275,6 @@ void traderctp::OnRspUserLogin(CThostFtdcRspUserLoginField* pRspUserLogin
 		m_req_login_dt.store(0);		
 		if (pRspInfo->ErrorID != 0)
 		{
-			Log(LOG_WARNING, NULL, "traderctp::OnRspUserLogin:%d", pRspInfo->ErrorID);
 			Log(LOG_WARNING, NULL, "ctp OnRspUserLogin, instance=%p, UserID=%s, ErrorID=%d, ErrMsg=%s"
 				, this, _req_login.user_name.c_str()
 				, pRspInfo ? pRspInfo->ErrorID : -999
@@ -319,10 +318,20 @@ void traderctp::OnRspUserLogin(CThostFtdcRspUserLoginField* pRspUserLogin
 	}		
 }
 
+void traderctp::ReinitCtp()
+{
+	if (nullptr != m_pTdApi)
+	{
+		StopTdApi();
+	}
+	boost::this_thread::sleep_for(boost::chrono::seconds(60));
+	InitTdApi();	
+}
+
 void traderctp::ProcessOnRspUserLogin(std::shared_ptr<CThostFtdcRspUserLoginField> pRspUserLogin
 	, std::shared_ptr<CThostFtdcRspInfoField> pRspInfo)
 {
-	Log(LOG_INFO, NULL, "ctp OnRspUserLogin, instance=%p, UserID=%s, ErrMsg=%s, TradingDay=%s, FrontId=%d, SessionId=%d, MaxOrderRef=%s"
+	Log(LOG_INFO, NULL, "ProcessOnRspUserLogin, instance=%p, UserID=%s, ErrMsg=%s, TradingDay=%s, FrontId=%d, SessionId=%d, MaxOrderRef=%s"
 		, this, _req_login.user_name.c_str(), GBKToUTF8(pRspInfo->ErrorMsg).c_str()
 		, pRspUserLogin->TradingDay, pRspUserLogin->FrontID, pRspUserLogin->SessionID, pRspUserLogin->MaxOrderRef
 	);
@@ -336,7 +345,12 @@ void traderctp::ProcessOnRspUserLogin(std::shared_ptr<CThostFtdcRspUserLoginFiel
 			, pRspInfo ? GBKToUTF8(pRspInfo->ErrorMsg).c_str() : ""
 		);
 		OutputNotifyAllSycn(pRspInfo->ErrorID,
-			u8"交易服务器登录失败, " + GBKToUTF8(pRspInfo->ErrorMsg), "WARNING");		
+			u8"交易服务器重登录失败, " + GBKToUTF8(pRspInfo->ErrorMsg), "WARNING");	
+		//如果不是密码错误
+		if (3 != pRspInfo->ErrorID)
+		{
+			_ios.post(boost::bind(&traderctp::ReinitCtp, this));
+		}		
 		return;
 	}
 	else
@@ -351,7 +365,7 @@ void traderctp::ProcessOnRspUserLogin(std::shared_ptr<CThostFtdcRspUserLoginFiel
 		m_front_id = pRspUserLogin->FrontID;
 		m_session_id = pRspUserLogin->SessionID;
 		m_order_ref = atoi(pRspUserLogin->MaxOrderRef) + 1;
-		OutputNotifyAllSycn(0, u8"登录成功");
+		OutputNotifyAllSycn(0, u8"交易服务器重登录成功");
 	}	
 }
 

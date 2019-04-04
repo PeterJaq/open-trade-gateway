@@ -49,7 +49,7 @@ LDFLAGS += -Lbin/
 
 LDLIBS +=-lopen-trade-common
 
-LDLIBS +=-lboost_thread -lboost_filesystem -lboost_regex
+LDLIBS +=-lboost_thread -lboost_filesystem -lboost_regex -lboost_chrono
 
 LDLIBS_CTP = $(LDLIBS) -lthosttraderapi 
 

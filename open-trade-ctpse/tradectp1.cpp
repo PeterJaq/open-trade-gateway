@@ -209,7 +209,7 @@ void traderctp::SendLoginRequest()
 		memcpy(f.ClientSystemInfo, client_system_info.c_str(), client_system_info.size());
 		///App代码
 		strcpy_x(f.ClientAppID, _req_login.client_app_id.c_str());
-		int ret = m_pTdApi->RegisterUserSystemInfo(&f);
+		int ret = m_pTdApi->RegisterUserSystemInfo(&f);		
 		Log(LOG_INFO
 			, NULL
 			, "ctp RegisterUserSystemInfo, instance=%p, UserID=%s, ClientSystemInfoLen=%d, base64=%s, ret=%d"
@@ -412,6 +412,16 @@ void traderctp::OnRspUserLogin(CThostFtdcRspUserLoginField* pRspUserLogin
 	}		
 }
 
+void traderctp::ReinitCtp()
+{
+	if (nullptr != m_pTdApi)
+	{
+		StopTdApi();
+	}
+	boost::this_thread::sleep_for(boost::chrono::seconds(60));
+	InitTdApi();
+}
+
 void traderctp::ProcessOnRspUserLogin(std::shared_ptr<CThostFtdcRspUserLoginField> pRspUserLogin
 	, std::shared_ptr<CThostFtdcRspInfoField> pRspInfo)
 {
@@ -430,6 +440,11 @@ void traderctp::ProcessOnRspUserLogin(std::shared_ptr<CThostFtdcRspUserLoginFiel
 		);
 		OutputNotifyAllSycn(pRspInfo->ErrorID,
 			u8"交易服务器登录失败, " + GBKToUTF8(pRspInfo->ErrorMsg), "WARNING");		
+		//如果不是密码错误
+		if (3 != pRspInfo->ErrorID)
+		{
+			_ios.post(boost::bind(&traderctp::ReinitCtp, this));
+		}
 		return;
 	}
 	else
@@ -1194,8 +1209,10 @@ void traderctp::ProcessQryTradingAccount(std::shared_ptr<CThostFtdcTradingAccoun
 		,_req_login.user_name.c_str()
 		, pRspInfo ? pRspInfo->ErrorID : -999);
 
-	if (!pRspInvestorAccount)
+	if (nullptr==pRspInvestorAccount)
 	{
+		Log(LOG_INFO, NULL
+			, "traderctp ProcessQryTradingAccount,nullptr==pRspInvestorAccount");
 		return;
 	}
 			
@@ -1229,6 +1246,8 @@ void traderctp::ProcessQryTradingAccount(std::shared_ptr<CThostFtdcTradingAccoun
 	account.frozen_commission = pRspInvestorAccount->FrozenCommission;
 	account.frozen_premium = pRspInvestorAccount->FrozenCash;
 	account.available = pRspInvestorAccount->Available;
+	Log(LOG_INFO, NULL
+		, "traderctp ProcessQryTradingAccount,Available:%f",account.available);
 	account.changed = true;
 	if (bIsLast) 
 	{
@@ -1315,13 +1334,11 @@ void traderctp::ProcessQryAccountregister(std::shared_ptr<CThostFtdcAccountregis
 		,_req_login.user_name.c_str()
 		, pRspInfo ? pRspInfo->ErrorID : -999);
 	
-	if (!pAccountregister) 
+	if (nullptr==pAccountregister) 
 	{
 		m_need_query_register.store(false);
 		return;
 	}	
-
-	Log(LOG_INFO,NULL,"traderctp ProcessQryAccountregister,need query register");
 
 	Bank& bank = GetBank(pAccountregister->BankID);
 	bank.changed = true;
