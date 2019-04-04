@@ -326,6 +326,10 @@ void traderctp::ReinitCtp()
 	}
 	boost::this_thread::sleep_for(boost::chrono::seconds(60));
 	InitTdApi();	
+	if (nullptr != m_pTdApi)
+	{
+		m_pTdApi->Init();
+	}
 }
 
 void traderctp::ProcessOnRspUserLogin(std::shared_ptr<CThostFtdcRspUserLoginField> pRspUserLogin
