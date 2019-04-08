@@ -16,7 +16,7 @@ int main(int argc, char* argv[])
 {
 	try
 	{
-		if (!LogInit("trade_server_log"))
+		if (!LogInit())
 		{			
 			return -1;
 		}
@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
 		if (!LoadConfig())
 
 		{
-			Log(LOG_WARNING,NULL,"load config failed!");
+			Log(LOG_WARNING,NULL,"trade_server load config failed!");
 			LogCleanup();
 			return -1;
 		}

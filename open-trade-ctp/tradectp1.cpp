@@ -290,7 +290,6 @@ void traderctp::OnRspUserLogin(CThostFtdcRspUserLoginField* pRspUserLogin
 		}
 		else
 		{
-			Log(LOG_WARNING, NULL, "traderctp::OnRspUserLogin:%d", pRspInfo->ErrorID);
 			std::string trading_day = pRspUserLogin->TradingDay;
 			if (m_trading_day != trading_day)
 			{
@@ -320,15 +319,23 @@ void traderctp::OnRspUserLogin(CThostFtdcRspUserLoginField* pRspUserLogin
 
 void traderctp::ReinitCtp()
 {
+	Log(LOG_INFO, NULL, "ctp ReinitCtp, instance=%p,UserID=%s 1"
+		, this, _req_login.user_name.c_str());
 	if (nullptr != m_pTdApi)
 	{
 		StopTdApi();
 	}
+	Log(LOG_INFO, NULL, "ctp ReinitCtp, instance=%p,UserID=%s 2"
+		, this, _req_login.user_name.c_str());
 	boost::this_thread::sleep_for(boost::chrono::seconds(60));
 	InitTdApi();	
+	Log(LOG_INFO, NULL, "ctp ReinitCtp, instance=%p,UserID=%s 3"
+		, this, _req_login.user_name.c_str());
 	if (nullptr != m_pTdApi)
 	{
 		m_pTdApi->Init();
+		Log(LOG_INFO, NULL, "ctp ReinitCtp, instance=%p,UserID=%s 4"
+			, this, _req_login.user_name.c_str());
 	}
 }
 
@@ -353,6 +360,8 @@ void traderctp::ProcessOnRspUserLogin(std::shared_ptr<CThostFtdcRspUserLoginFiel
 		//如果不是密码错误
 		if (3 != pRspInfo->ErrorID)
 		{
+			Log(LOG_INFO, NULL, "ctp ProcessOnRspUserLogin, instance=%p,UserID=%s need ReinitCtp"
+				, this, _req_login.user_name.c_str());
 			_ios.post(boost::bind(&traderctp::ReinitCtp, this));
 		}		
 		return;
@@ -1079,7 +1088,9 @@ void traderctp::ProcessQryBrokerTradingParams(std::shared_ptr<CThostFtdcBrokerTr
 	}
 
 	Log(LOG_INFO, NULL
-		, "BrokerTradingParams Algorithm:%d"
+		, "traderctp BrokerTradingParams,instance=%p,UserID=%s,Algorithm=%d"
+		, this
+		, _req_login.user_name.c_str()
 		, pBrokerTradingParams->Algorithm);
 	m_Algorithm_Type = pBrokerTradingParams->Algorithm;	
 }
@@ -1149,8 +1160,10 @@ void traderctp::ProcessQryTradingAccount(std::shared_ptr<CThostFtdcTradingAccoun
 	account.available = pRspInvestorAccount->Available;
 
 	Log(LOG_INFO, NULL
-		, "available ctp return:%f"
-		, account.available);
+		,"traderctp ProcessQryTradingAccount instance=%p,UserID=%s,available ctp return:%f"
+		,this
+		,_req_login.user_name.c_str()
+		,account.available);
 
 	account.changed = true;
 	if (bIsLast) 
@@ -1219,7 +1232,9 @@ void traderctp::ProcessQryContractBank(std::shared_ptr<CThostFtdcContractBankFie
 	bank.bank_id = pContractBank->BankID;
 	bank.bank_name = GBKToUTF8(pContractBank->BankName);
 	Log(LOG_INFO, NULL
-		,"traderctp ProcessQryContractBank,bank_id=%s,bank_name=%s"		
+		,"traderctp ProcessQryContractBank,instance=%p,UserID=%s,bank_id=%s,bank_name=%s"	
+		,this
+		,_req_login.user_name.c_str()
 		,bank.bank_id.c_str()
 		,bank.bank_name.c_str());
 
@@ -1264,8 +1279,6 @@ void traderctp::ProcessQryAccountregister(std::shared_ptr<CThostFtdcAccountregis
 		m_need_query_register.store(false);
 		return;
 	}	
-
-	Log(LOG_INFO,NULL,"traderctp ProcessQryAccountregister,need query register");
 
 	Bank& bank = GetBank(pAccountregister->BankID);
 	bank.changed = true;
@@ -1758,8 +1771,9 @@ void traderctp::ProcessOnRtnTradingNotice(std::shared_ptr<CThostFtdcTradingNotic
 	{
 		Log(LOG_INFO
 			, NULL
-			, "ctp OnRtnTradingNotice,instance=%p,TradingNoticeInfo=%s"
+			, "ctp OnRtnTradingNotice,instance=%p, UserID=%s, TradingNoticeInfo=%s"
 			, this
+			, _req_login.user_name.c_str()
 			, s.c_str());
 		OutputNotifyAllAsych(0,s);
 	}

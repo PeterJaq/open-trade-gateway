@@ -8,12 +8,19 @@
 #include <stdarg.h>
 #include <mutex>
 #include <ctime>
+#include <sstream>
+
+#include <memory.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 struct LogContext
 {
-    FILE* m_log_file;
+	std::mutex m_log_file_mutex;
 
-    std::mutex m_log_file_mutex;
+	int m_log_file_fd;  	
 } log_context;
 
 const char* Level2String(LogLevel level)
@@ -54,29 +61,41 @@ const char* CurrentDateTimeStr()
 
 void Log(LogLevel level, const char* pack_str, const char* message_fmt, ...)
 {
-    std::lock_guard<std::mutex> lock(log_context.m_log_file_mutex);
+	std::lock_guard<std::mutex> lock(log_context.m_log_file_mutex);
+	
+	
     const char* level_str = Level2String(level);
-    const char* datetime_str = CurrentDateTimeStr();
-    fprintf(log_context.m_log_file, "{\"time\": \"%s\", \"level\": \"%s\", \"msg\": \"", datetime_str, level_str);
-    va_list arglist;
-    va_start(arglist, message_fmt);
-    vfprintf(log_context.m_log_file, message_fmt, arglist);
-    va_end(arglist);
-    if (pack_str)
+    const char* datetime_str = CurrentDateTimeStr();	
+
+	std::stringstream ss;
+	ss << "{\"time\": \"" << datetime_str
+		<< "\", \"level\": \"" << level_str
+		<< "\", \"msg\": \"";
+
+	va_list arglist;
+	char buf[1024 * 5];
+	memset(buf, 0, sizeof(buf));
+	va_start(arglist, message_fmt);
+	vsnprintf(buf,1024*5,message_fmt,arglist);
+	va_end(arglist);
+	if (pack_str)
 	{
-        fprintf(log_context.m_log_file, "\", \"pack\": %s}\n", pack_str);
-    } else 
+		ss << buf << "\", \"pack\":"
+			<< pack_str << "}\n";		
+	}
+	else
 	{
-        fprintf(log_context.m_log_file, "\"}\n");
-    }
-    fflush(log_context.m_log_file);
+		ss << buf << "\"}\n";
+	}
+	std::string str = ss.str();
+	write(log_context.m_log_file_fd,str.c_str(),str.length());
 }
 
-bool LogInit(const std::string& fileName)
+bool LogInit()
 {
-	std::string logFileName = "/var/log/open-trade-gateway/" + fileName;
-    log_context.m_log_file = fopen(logFileName.c_str(),"a+t");
-    if (!log_context.m_log_file)
+	std::string logFileName = "/var/log/open-trade-gateway/otg_log.txt";
+    log_context.m_log_file_fd = open(logFileName.c_str(),O_WRONLY|O_APPEND| O_CREAT);
+	if (log_context.m_log_file_fd == -1)
 	{
         printf("can't open log file:%s",logFileName.c_str());
         return false;
@@ -86,5 +105,5 @@ bool LogInit(const std::string& fileName)
 
 void LogCleanup()
 {
-    fclose(log_context.m_log_file);
+    close(log_context.m_log_file_fd);
 }

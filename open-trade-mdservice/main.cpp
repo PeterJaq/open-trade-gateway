@@ -17,7 +17,7 @@
 
 int main(int argc, char* argv[])
 {
-	if (!LogInit("mdservice_log"))
+	if (!LogInit())
 	{		
 		return -1;
 	}
@@ -26,7 +26,7 @@ int main(int argc, char* argv[])
 
 	if (!md_service::LoadInsList())
 	{
-		Log(LOG_ERROR, NULL, "LoadInsList failed");
+		Log(LOG_ERROR, NULL, "mdservice LoadInsList failed");
 		LogCleanup();
 		return -1;
 	}

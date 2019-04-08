@@ -17,7 +17,7 @@ typedef enum
     LOG_DEBUG
 } LogLevel;
 
-bool LogInit(const std::string& fileName);
+bool LogInit();
 
 void Log(LogLevel level, const char* pack_str, const char* message_fmt, ...);
 

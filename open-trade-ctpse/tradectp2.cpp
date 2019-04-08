@@ -92,7 +92,8 @@ void traderctp::Start()
 	}
 	catch (const std::exception& ex)
 	{
-		Log(LOG_ERROR, NULL, "Open message_queue Erro:%s", ex.what());
+		Log(LOG_ERROR, NULL, "Open message_queue Erro:%s,mq_name:%s"
+			, ex.what(), _out_mq_name.c_str());
 	}
 
 	_thread_ptr = boost::make_shared<boost::thread>(
@@ -207,7 +208,10 @@ std::string traderctp::GetConnectionStr()
 
 void traderctp::CloseConnection(int nId)
 {
-	Log(LOG_INFO,NULL,"CloseConnection:%d",nId);
+	Log(LOG_INFO, NULL, "traderctp CloseConnection,instance=%p,UserID=%s,conn id:%d"
+		, this
+		, _req_login.user_name.c_str()
+		, nId);
 
 	for (std::vector<int>::iterator it = m_logined_connIds.begin();
 		it != m_logined_connIds.end(); it++)
@@ -239,7 +243,11 @@ void traderctp::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 	SerializerTradeBase ss;
 	if (!ss.FromString(msg.c_str()))
 	{
-		Log(LOG_WARNING, NULL, "trade ctp parse json(%s) fail", msg.c_str());
+		Log(LOG_WARNING, NULL, "traderctp parse json(%s) fail,instance=%p,UserID=%s,conn id:%d"
+			, msg.c_str()
+			, this
+			, _req_login.user_name.c_str()
+			, connId);
 		return;
 	}
 
@@ -253,17 +261,19 @@ void traderctp::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 	{
 		if (nullptr == m_pTdApi)
 		{
-			Log(LOG_ERROR
-				, NULL
-				, "trade ctp receive change_password msg before receive login msg!");
+			Log(LOG_ERROR, NULL, "trade ctp receive change_password msg before receive login msg,instance=%p,UserID=%s,conn id:%d"
+				, this
+				, _req_login.user_name.c_str()
+				, connId);
 			return;
 		}
 
 		if ((!m_b_login.load()) && (m_loging_connectId != connId))
 		{
-			Log(LOG_ERROR
-				, NULL
-				, "trade ctp receive change_password msg from a diffrent connection before login suceess!");
+			Log(LOG_ERROR, NULL, "trade ctp receive change_password msg from a diffrent connection before login suceess,instance=%p,UserID=%s,conn id:%d"
+				, this
+				, _req_login.user_name.c_str()
+				, connId);
 			return;
 		}
 
@@ -294,15 +304,20 @@ void traderctp::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 	{
 		if (!m_b_login)
 		{
-			Log(LOG_WARNING, NULL, "trade ctp receive other msg before login:%s"
-				,msg.c_str());
+			Log(LOG_WARNING, NULL, "trade ctp receive other msg before login,instance=%p,UserID=%s,conn id:%d"
+				, this
+				, _req_login.user_name.c_str()
+				, connId);
 			return;
 		}
 		
 		if (!IsConnectionLogin(connId))
 		{
-			Log(LOG_WARNING, NULL, "trade ctp receive other msg which from not login connecion:%s"
-				, msg.c_str());
+			Log(LOG_WARNING, NULL, "trade ctp receive other msg which from not login connecion:%s,instance=%p,UserID=%s,conn id:%d"
+				, msg.c_str()
+				, this
+				, _req_login.user_name.c_str()
+				, connId);
 			return;
 		}
 
@@ -355,8 +370,9 @@ void traderctp::OnClientReqChangePassword(CThostFtdcUserPasswordUpdateField f)
 	strcpy_x(f.UserID, _req_login.user_name.c_str());
 	int r = m_pTdApi->ReqUserPasswordUpdate(&f, 0);
 	Log(LOG_INFO, NULL
-		, "ctp ReqUserPasswordUpdate, instance=%p, ret=%d"
+		, "ctp ReqUserPasswordUpdate, instance=%p,UserID=%s, ret=%d"
 		, this
+		, _req_login.user_name.c_str()
 		, r);
 }
 
@@ -548,7 +564,8 @@ void traderctp::ProcessReqLogIn(int connId,ReqLogin& req)
 		_req_login = req;
 
 		Log(LOG_INFO, NULL
-			, "_req_login, client_system_info=%s, client_app_id=%s"
+			, "_req_login, client_system_info=%s,UserId=%s,client_app_id=%s"
+			, _req_login.user_name.c_str()
 			, _req_login.client_system_info.c_str(),
 			_req_login.client_app_id.c_str());
 
@@ -607,10 +624,10 @@ bool traderctp::WaitLogIn()
 		{
 			Log(LOG_WARNING
 				, NULL
-				, "CTP登录超时,可能是交易前置配置错误,请检查配置文件,bid:%s,username:%s"
+				, "CTP login timeout,trading fronts is closed or trading fronts config is error,bid:%s,username:%s"
 				, _req_login.bid.c_str()
 				, _req_login.user_name.c_str());
-		}		
+		}
 	}
 	return _logIn;
 }

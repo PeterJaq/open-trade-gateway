@@ -58,7 +58,8 @@ void tradersim::Start()
 	}
 	catch (const std::exception& ex)
 	{
-		Log(LOG_ERROR, NULL, "Open message_queue Erro:%s", ex.what());
+		Log(LOG_ERROR, NULL, "Open message_queue Erro:%s,mq_name:%s"
+			,ex.what(),_out_mq_name.c_str());
 	}
 
 	_thread_ptr = boost::make_shared<boost::thread>(
@@ -338,7 +339,10 @@ void tradersim::SaveUserDataFile()
 
 void tradersim::CloseConnection(int nId)
 {
-	Log(LOG_INFO,NULL,"CloseConnection:%d", nId);
+	Log(LOG_INFO, NULL, "tradersim CloseConnection,instance=%p,UserID=%s,conn id:%d"
+		, this
+		, _req_login.user_name.c_str()
+		, nId);
 	for (std::vector<int>::iterator it = m_logined_connIds.begin();
 		it != m_logined_connIds.end(); it++)
 	{
@@ -384,7 +388,11 @@ void tradersim::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 	SerializerTradeBase ss;
 	if (!ss.FromString(msg.c_str()))
 	{
-		Log(LOG_WARNING, NULL, "trade sim parse json(%s) fail", msg.c_str());
+		Log(LOG_WARNING, NULL, "tradersim parse json(%s) fail,instance=%p,UserID=%s,conn id:%d"
+			, msg.c_str()
+			, this
+			, _req_login.user_name.c_str()
+			, connId);
 		return;
 	}
 
@@ -398,16 +406,20 @@ void tradersim::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 	{
 		if (!m_b_login)
 		{
-			Log(LOG_WARNING, NULL, "trade sim receive other msg before login:%s"
-				,msg.c_str());			
+			Log(LOG_WARNING, NULL, "trade sim receive other msg before login,instance=%p,UserID=%s,conn id:%d"
+				, this
+				, _req_login.user_name.c_str()
+				, connId);
 			return;
 		}
 
 		if (!IsConnectionLogin(connId))
 		{
-			Log(LOG_WARNING, NULL
-				,"trade sim receive other msg which from not login connecion:%s"
-				,msg.c_str());
+			Log(LOG_WARNING, NULL, "trade sim receive other msg which from not login connecion:%s,instance=%p,UserID=%s,conn id:%d"
+				, msg.c_str()
+				, this
+				, _req_login.user_name.c_str()
+				, connId);
 			return;
 		}
 		

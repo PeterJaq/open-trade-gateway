@@ -23,17 +23,18 @@ int main(int argc, char* argv[])
 	}
 
 	std::string logFileName = argv[1];
-	if (!LogInit(logFileName))
+	if (!LogInit())
 	{
 		return -1;
 	}
 
-	Log(LOG_INFO, NULL, "trade sim init");
+	Log(LOG_INFO, NULL, "trade sim %s init", logFileName.c_str());
 
 	//加载配置文件
 	if (!LoadConfig())
 	{
-		Log(LOG_WARNING, NULL, "load config failed!");
+		Log(LOG_WARNING, NULL, "trade sim %s load config failed!"
+			, logFileName.c_str());
 		LogCleanup();
 		return -1;
 	}
@@ -50,12 +51,12 @@ int main(int argc, char* argv[])
 	tradersim tradeSim(ioc,logFileName);
 	tradeSim.Start();
 	signals_.async_wait(
-		[&ioc, &tradeSim](boost::system::error_code, int sig)
+		[&ioc, &tradeSim,&logFileName](boost::system::error_code, int sig)
 	{
 		tradeSim.Stop();
 		ioc.stop();
-		Log(LOG_INFO, NULL, "trade sim got sig %d", sig);
-		Log(LOG_INFO, NULL, "trade sim exit");
+		Log(LOG_INFO, NULL, "trade sim %s got sig %d",logFileName.c_str(),sig);
+		Log(LOG_INFO, NULL, "trade sim %s exit",logFileName.c_str());
 		LogCleanup();
 	});
 	ioc.run();
