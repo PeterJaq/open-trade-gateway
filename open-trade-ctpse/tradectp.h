@@ -265,7 +265,9 @@ private:
 
 	bool WaitLogIn();
 
-	void ReqAuthenticate();
+	int ReqAuthenticate();
+
+	int RegSystemInfo();
 
 	void SendLoginRequest();
 	

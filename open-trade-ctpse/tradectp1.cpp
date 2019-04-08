@@ -99,178 +99,6 @@ static std::string GuessExchangeId(std::string instrument_id)
 	return "UNKNOWN";
 }
 
-void traderctp::ProcessOnFrontConnected()
-{
-	ReqAuthenticate();
-	Log(LOG_INFO, NULL
-		, "ctp ProcessOnFrontConnected, instance=%p, UserID=%s"
-		, this, _req_login.user_name.c_str());
-	OutputNotifyAllSycn(0,u8"已经重新连接到交易前置");
-}
-
-void traderctp::OnFrontConnected()
-{
-	//还在等待登录阶段
-	if (!m_b_login.load())
-	{
-		//这时是安全的
-		ReqAuthenticate();
-		Log(LOG_INFO, NULL, "ctp OnFrontConnected, instance=%p, UserID=%s"
-			, this, _req_login.user_name.c_str());
-		OutputNotifySycn(m_loging_connectId,0,u8"已经连接到交易前置");
-	}
-	else
-	{
-		//这时不能直接调用
-		_ios.post(boost::bind(&traderctp::ProcessOnFrontConnected
-			, this));
-	}	
-}
-
-void traderctp::ReqAuthenticate()
-{
-	if (_req_login.broker.auth_code.empty())
-	{
-		Log(LOG_INFO, NULL, "_req_login.broker.auth_code.empty(), instance=%p, UserID=%s"
-			, this, _req_login.user_name.c_str());
-		SendLoginRequest();
-		return;
-	}
-	CThostFtdcReqAuthenticateField field;
-	memset(&field, 0, sizeof(field));
-	strcpy_x(field.BrokerID, m_broker_id.c_str());
-	strcpy_x(field.UserID, _req_login.user_name.c_str());
-	strcpy_x(field.UserProductInfo, _req_login.broker.product_info.c_str());
-	strcpy_x(field.AuthCode, _req_login.broker.auth_code.c_str());
-	strcpy_x(field.AppID,_req_login.broker.product_info.c_str());
-	int ret = m_pTdApi->ReqAuthenticate(&field,++_requestID);
-	Log(LOG_INFO, NULL
-		, "ctp ReqAuthenticate, instance=%p,UserID=%s,UserProductInfo=%s,AuthCode=%s, ret=%d"
-		, this
-		, _req_login.user_name.c_str()
-		, _req_login.broker.product_info.c_str()
-		, _req_login.broker.auth_code.c_str()
-		,ret);
-	if (0 != ret)
-	{
-		boost::unique_lock<boost::mutex> lock(_logInmutex);
-		_logIn = false;
-		_logInCondition.notify_all();
-	}	
-}
-
-static std::string base64_decode(const std::string &in) 
-{
-	std::string out;
-	std::vector<int> T(256, -1);
-	for (int i = 0; i < 64; i++) T["ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[i]] = i;
-
-	int val = 0, valb = -8;
-	for (const char& c : in) 
-	{
-		if (T[c] == -1) break;
-		val = (val << 6) + T[c];
-		valb += 6;
-		if (valb >= 0) 
-		{
-			out.push_back(char((val >> valb) & 0xFF));
-			valb -= 8;
-		}
-	}
-	return out;
-}
-
-void traderctp::SendLoginRequest()
-{
-	Log(LOG_INFO, NULL
-		, "SendLoginRequest,instance=%p,UserID=%s, client_system_info=%s, client_app_id=%s"
-		, this
-		, _req_login.user_name.c_str()
-		, _req_login.client_system_info.c_str(),
-		_req_login.client_app_id.c_str());
-	long long now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-	m_req_login_dt.store(now);
-	//提交终端信息
-	if (!_req_login.client_system_info.empty())
-	{
-		CThostFtdcUserSystemInfoField f;
-		memset(&f, 0, sizeof(f));
-		strcpy_x(f.BrokerID, _req_login.broker.ctp_broker_id.c_str());
-		strcpy_x(f.UserID, _req_login.user_name.c_str());
-		///用户公网IP
-		strcpy_x(f.ClientPublicIP, _req_login.client_ip.c_str());
-		///终端IP端口
-		f.ClientIPPort = _req_login.client_port;
-		///登录成功时间
-		std::time_t t = now;
-		std::tm* tm = std::localtime(&t);
-		snprintf(f.ClientLoginTime, 9, "%02d:%02d:%02d", tm->tm_hour, tm->tm_min, tm->tm_sec);
-		std::string client_system_info = base64_decode(_req_login.client_system_info);
-		///用户端系统内部信息长度
-		f.ClientSystemInfoLen = client_system_info.size();
-		///用户端系统内部信息
-		memcpy(f.ClientSystemInfo, client_system_info.c_str(), client_system_info.size());
-		///App代码
-		strcpy_x(f.ClientAppID, _req_login.client_app_id.c_str());
-		int ret = m_pTdApi->RegisterUserSystemInfo(&f);		
-		Log(LOG_INFO
-			, NULL
-			, "ctp RegisterUserSystemInfo, instance=%p, UserID=%s, ClientSystemInfoLen=%d, base64=%s, ret=%d"
-			, this
-			, f.UserID
-			, client_system_info.size()
-			, _req_login.client_system_info.c_str()
-			, ret);
-		if (0 != ret)
-		{
-			boost::unique_lock<boost::mutex> lock(_logInmutex);
-			_logIn = false;
-			_logInCondition.notify_all();
-			return;
-		}
-		else
-		{
-			CThostFtdcReqUserLoginField field;
-			memset(&field, 0, sizeof(field));
-			strcpy_x(field.BrokerID, _req_login.broker.ctp_broker_id.c_str());
-			strcpy_x(field.UserID, _req_login.user_name.c_str());
-			strcpy_x(field.Password, _req_login.password.c_str());
-			strcpy_x(field.UserProductInfo, _req_login.broker.product_info.c_str());
-			strcpy_x(field.LoginRemark, _req_login.client_ip.c_str());
-			int ret = m_pTdApi->ReqUserLogin(&field, ++_requestID);
-			if (0 != ret)
-			{
-				Log(LOG_INFO, NULL,
-					"ctp ReqUserLogin fail, instance=%p, UserID=%s, LoginRemark=%s, ret=%d"
-					, this, field.UserID, field.LoginRemark, ret);
-				boost::unique_lock<boost::mutex> lock(_logInmutex);
-				_logIn = false;
-				_logInCondition.notify_all();
-			}
-		}
-	}
-	else
-	{
-		CThostFtdcReqUserLoginField field;
-		memset(&field, 0, sizeof(field));
-		strcpy_x(field.BrokerID, _req_login.broker.ctp_broker_id.c_str());
-		strcpy_x(field.UserID, _req_login.user_name.c_str());
-		strcpy_x(field.Password, _req_login.password.c_str());
-		strcpy_x(field.UserProductInfo, _req_login.broker.product_info.c_str());
-		strcpy_x(field.LoginRemark, _req_login.client_ip.c_str());
-		int ret = m_pTdApi->ReqUserLogin(&field, ++_requestID);
-		if (0 != ret)
-		{
-			Log(LOG_INFO, NULL,
-				"ctp ReqUserLogin fail, instance=%p, UserID=%s, LoginRemark=%s, ret=%d"
-				, this, field.UserID, field.LoginRemark, ret);
-			boost::unique_lock<boost::mutex> lock(_logInmutex);
-			_logIn = false;
-			_logInCondition.notify_all();
-		}
-	}
-}
-
 void traderctp::ProcessOnFrontDisconnected(int nReason)
 {
 	Log(LOG_WARNING, NULL
@@ -299,6 +127,105 @@ void traderctp::OnFrontDisconnected(int nReason)
 		_ios.post(boost::bind(&traderctp::ProcessOnFrontDisconnected
 			, this, nReason));
 	}
+}
+
+void traderctp::ProcessOnFrontConnected()
+{	
+	Log(LOG_INFO, NULL
+		, "ctp ProcessOnFrontConnected, instance=%p, UserID=%s"
+		, this, _req_login.user_name.c_str());
+	OutputNotifyAllSycn(0,u8"已经重新连接到交易前置");
+	int ret=ReqAuthenticate();
+	if (0 != ret)
+	{
+		Log(LOG_WARNING
+			, NULL
+			, "ctp ProcessOnFrontConnected, instance=%p, UserID=%s,ReqAuthenticate ret=%d"
+			, this
+			, _req_login.user_name.c_str()
+			, ret);
+	}
+}
+
+void traderctp::OnFrontConnected()
+{
+	//还在等待登录阶段
+	if (!m_b_login.load())
+	{
+		//这时是安全的
+		Log(LOG_INFO, NULL, "ctp OnFrontConnected, instance=%p, UserID=%s"
+			, this, _req_login.user_name.c_str());
+		OutputNotifySycn(m_loging_connectId, 0, u8"已经连接到交易前置");
+		int ret=ReqAuthenticate();
+		if (0 != ret)
+		{
+			Log(LOG_WARNING
+				, NULL
+				, "ctp OnFrontConnected, instance=%p, UserID=%s,ReqAuthenticate ret=%d"
+				, this
+				, _req_login.user_name.c_str()
+				, ret);
+			boost::unique_lock<boost::mutex> lock(_logInmutex);
+			_logIn = false;
+			_logInCondition.notify_all();
+		}		
+	}
+	else
+	{
+		//这时不能直接调用
+		_ios.post(boost::bind(&traderctp::ProcessOnFrontConnected
+			, this));
+	}	
+}
+
+int traderctp::ReqAuthenticate()
+{
+	if (_req_login.broker.auth_code.empty())
+	{
+		Log(LOG_INFO
+			, NULL
+			, "_req_login.broker.auth_code.empty(), instance=%p, UserID=%s"
+			, this
+			, _req_login.user_name.c_str());
+		SendLoginRequest();
+		return 0;
+	}
+	CThostFtdcReqAuthenticateField field;
+	memset(&field, 0, sizeof(field));
+	strcpy_x(field.BrokerID, m_broker_id.c_str());
+	strcpy_x(field.UserID, _req_login.user_name.c_str());
+	strcpy_x(field.AppID,_req_login.broker.product_info.c_str());
+	strcpy_x(field.AuthCode,_req_login.broker.auth_code.c_str());
+	int ret = m_pTdApi->ReqAuthenticate(&field,++_requestID);
+	Log(LOG_INFO, NULL
+		, "ctp ReqAuthenticate, instance=%p,UserID=%s,UserProductInfo=%s,AuthCode=%s, ret=%d"
+		, this
+		, _req_login.user_name.c_str()
+		, _req_login.broker.product_info.c_str()
+		, _req_login.broker.auth_code.c_str()
+		,ret);
+	return ret;	
+}
+
+static std::string base64_decode(const std::string &in) 
+{
+	std::string out;
+	std::vector<int> T(256, -1);
+	for (int i = 0; i < 64; i++) T["ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[i]] = i;
+
+	int val = 0, valb = -8;
+	for (const char& c : in) 
+	{
+		if (T[c] == -1) break;
+		val = (val << 6) + T[c];
+		valb += 6;
+		if (valb >= 0) 
+		{
+			out.push_back(char((val >> valb) & 0xFF));
+			valb -= 8;
+		}
+	}
+	return out;
 }
 
 void traderctp::ProcessOnRspAuthenticate(std::shared_ptr<CThostFtdcRspInfoField> pRspInfo)
@@ -337,7 +264,7 @@ void traderctp::OnRspAuthenticate(CThostFtdcRspAuthenticateField *pRspAuthentica
 			boost::unique_lock<boost::mutex> lock(_logInmutex);
 			_logIn = false;
 			_logInCondition.notify_all();
-			return;				
+			return;
 		}
 		else
 		{
@@ -347,15 +274,119 @@ void traderctp::OnRspAuthenticate(CThostFtdcRspAuthenticateField *pRspAuthentica
 				, pRspInfo ? GBKToUTF8(pRspInfo->ErrorMsg).c_str() : ""
 			);
 			SendLoginRequest();
-		}		
+		}
 	}
 	else
 	{
 		std::shared_ptr<CThostFtdcRspInfoField> ptr = nullptr;
 		ptr = std::make_shared<CThostFtdcRspInfoField>(CThostFtdcRspInfoField(*pRspInfo));
-		_ios.post(boost::bind(&traderctp::ProcessOnRspAuthenticate,this,ptr));
-	}	
+		_ios.post(boost::bind(&traderctp::ProcessOnRspAuthenticate, this, ptr));
+	}
 }
+
+int traderctp::RegSystemInfo()
+{
+	CThostFtdcUserSystemInfoField f;
+	memset(&f, 0, sizeof(f));
+	strcpy_x(f.BrokerID,_req_login.broker.ctp_broker_id.c_str());
+	strcpy_x(f.UserID,_req_login.user_name.c_str());
+	std::string client_system_info = base64_decode(_req_login.client_system_info);
+	memcpy(f.ClientSystemInfo, client_system_info.c_str(),client_system_info.length());
+	f.ClientSystemInfoLen = client_system_info.length();
+	///用户公网IP
+	strcpy_x(f.ClientPublicIP, _req_login.client_ip.c_str());
+	///终端IP端口
+	f.ClientIPPort = _req_login.client_port;
+	///登录成功时间
+	boost::posix_time::ptime now = boost::posix_time::second_clock::local_time();
+	snprintf(f.ClientLoginTime,9,"%02d:%02d:%02d", now.time_of_day().hours()
+		,now.time_of_day().minutes(),now.time_of_day().seconds());
+	///App代码
+	strcpy_x(f.ClientAppID, _req_login.client_app_id.c_str());
+
+	int ret = m_pTdApi->RegisterUserSystemInfo(&f);
+	Log(LOG_INFO
+		, NULL
+		, "ctp RegisterUserSystemInfo, instance=%p, UserID=%s,ClientLoginTime=%s,ClientPublicIP=%s,ClientIPPort=%d,ClientAppID=%s,ClientSystemInfoLen=%d, ClientSystemInfo=%s, ret=%d"
+		, this
+		, f.UserID
+		, f.ClientLoginTime
+		, _req_login.client_ip.c_str()
+		, _req_login.client_port
+		,_req_login.client_app_id.c_str()
+		, client_system_info.length()
+		, client_system_info.c_str()
+		, ret);
+	return ret;	
+}
+
+void traderctp::SendLoginRequest()
+{
+	Log(LOG_INFO, NULL
+		, "SendLoginRequest,instance=%p,UserID=%s, client_system_info=%s, client_app_id=%s"
+		, this
+		, _req_login.user_name.c_str()
+		, _req_login.client_system_info.c_str(),
+		_req_login.client_app_id.c_str());
+	long long now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+	m_req_login_dt.store(now);
+	//提交终端信息
+	if (!_req_login.client_system_info.empty())
+	{
+		int ret =RegSystemInfo();
+		if (0 != ret)
+		{
+			boost::unique_lock<boost::mutex> lock(_logInmutex);
+			_logIn = false;
+			_logInCondition.notify_all();
+			return;
+		}
+		else
+		{
+			CThostFtdcReqUserLoginField field;
+			memset(&field, 0, sizeof(field));
+			strcpy_x(field.BrokerID, _req_login.broker.ctp_broker_id.c_str());
+			strcpy_x(field.UserID, _req_login.user_name.c_str());
+			strcpy_x(field.Password, _req_login.password.c_str());			
+			int ret = m_pTdApi->ReqUserLogin(&field, ++_requestID);
+			if (0 != ret)
+			{
+				Log(LOG_INFO, NULL,
+					"ctp ReqUserLogin fail, instance=%p, UserID=%s,ret=%d"
+					, this
+					, field.UserID
+					,ret);
+				boost::unique_lock<boost::mutex> lock(_logInmutex);
+				_logIn = false;
+				_logInCondition.notify_all();
+			}
+		}
+	}
+	else
+	{
+		CThostFtdcReqUserLoginField field;
+		memset(&field, 0, sizeof(field));
+		strcpy_x(field.BrokerID, _req_login.broker.ctp_broker_id.c_str());
+		strcpy_x(field.UserID, _req_login.user_name.c_str());
+		strcpy_x(field.Password, _req_login.password.c_str());		
+		int ret = m_pTdApi->ReqUserLogin(&field, ++_requestID);
+		if (0 != ret)
+		{
+			Log(LOG_INFO, NULL,
+				"ctp ReqUserLogin fail, instance=%p, UserID=%s,ret=%d"
+				, this
+				, field.UserID
+				, ret);
+			boost::unique_lock<boost::mutex> lock(_logInmutex);
+			_logIn = false;
+			_logInCondition.notify_all();
+		}
+	}
+}
+
+
+
+
 
 void traderctp::OnRspUserLogin(CThostFtdcRspUserLoginField* pRspUserLogin
 	, CThostFtdcRspInfoField* pRspInfo, int nRequestID, bool bIsLast)
@@ -371,7 +402,6 @@ void traderctp::OnRspUserLogin(CThostFtdcRspUserLoginField* pRspUserLogin
 		m_req_login_dt.store(0);		
 		if (pRspInfo->ErrorID != 0)
 		{
-			Log(LOG_WARNING, NULL, "traderctp::OnRspUserLogin:%d", pRspInfo->ErrorID);
 			Log(LOG_WARNING, NULL, "ctp OnRspUserLogin, instance=%p, UserID=%s, ErrorID=%d, ErrMsg=%s"
 				, this, _req_login.user_name.c_str()
 				, pRspInfo ? pRspInfo->ErrorID : -999
