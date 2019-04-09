@@ -373,6 +373,8 @@ void traderctp::SendUserDataImd(int connectId)
 		
 	std::string json_str;
 	nss.ToString(&json_str);	
+
+	//Log(LOG_ERROR,NULL,"SendUserDataImd:%s"	,json_str.c_str());
 	//发送	
 	std::shared_ptr<std::string> msg_ptr(new std::string(json_str));
 	_ios_out.post(boost::bind(&traderctp::SendMsg,this,connectId,msg_ptr));		
@@ -512,6 +514,7 @@ void traderctp::SendUserData()
 	rapidjson::Pointer("/data/0/trade").Set(*nss.m_doc, node_user);	
 	std::string json_str;
 	nss.ToString(&json_str);
+	//Log(LOG_ERROR, NULL, "SendUserData:%s", json_str.c_str());
 	//发送		
 	std::string str = GetConnectionStr();
 	if (!str.empty())

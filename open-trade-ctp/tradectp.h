@@ -227,6 +227,8 @@ private:
 
 	TThostFtdcAlgorithmType m_Algorithm_Type;
 
+	std::map<std::string, Bank> m_banks;
+
 	void InitTdApi();
 
 	void StopTdApi();

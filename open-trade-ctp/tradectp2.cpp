@@ -56,6 +56,7 @@ traderctp::traderctp(boost::asio::io_context& ios
 	,m_ordermap_remote_local()	
 	,m_data()
 	,m_Algorithm_Type(THOST_FTDC_AG_None)
+	,m_banks()
 {
 	m_req_login_dt = 0;
 	m_next_qry_dt = 0;

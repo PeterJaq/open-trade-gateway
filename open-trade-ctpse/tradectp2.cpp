@@ -54,6 +54,7 @@ traderctp::traderctp(boost::asio::io_context& ios
 	,m_ordermap_remote_local()	
 	,m_data()
 	,m_Algorithm_Type(THOST_FTDC_AG_None)
+	,m_banks()
 {
 	m_req_login_dt = 0;
 	m_next_qry_dt = 0;
@@ -564,7 +565,7 @@ void traderctp::ProcessReqLogIn(int connId,ReqLogin& req)
 		_req_login = req;
 
 		Log(LOG_INFO, NULL
-			, "_req_login, client_system_info=%s,UserId=%s,client_app_id=%s"
+			, "_req_login, UserId=%s,client_system_info=%s,client_app_id=%s"
 			, _req_login.user_name.c_str()
 			, _req_login.client_system_info.c_str(),
 			_req_login.client_app_id.c_str());

@@ -54,12 +54,16 @@ public:
 	}
 	bool FilterMapItem(const std::string& key, Bank& value)
 	{
+		if (dump_all)
+			return true;
 		bool b = value.changed;
 		value.changed = false;
 		return b;
 	}
 	bool FilterMapItem(const std::string& key, TransferLog& value)
 	{
+		if (dump_all)
+			return true;
 		bool b = value.changed;
 		value.changed = false;
 		return b;

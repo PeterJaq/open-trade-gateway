@@ -1386,15 +1386,20 @@ void traderctp::ProcessQryAccountregister(std::shared_ptr<CThostFtdcAccountregis
 	if (nullptr==pAccountregister) 
 	{
 		m_need_query_register.store(false);
+		m_data.m_banks.clear();
+		m_data.m_banks = m_banks;
 		return;
 	}	
 
 	Bank& bank = GetBank(pAccountregister->BankID);
 	bank.changed = true;
+	m_banks.insert(std::map<std::string, Bank>::value_type(bank.bank_id, bank));
 	if (bIsLast) 
 	{
 		m_need_query_register.store(false);
 		m_something_changed = true;
+		m_data.m_banks.clear();
+		m_data.m_banks = m_banks;
 		SendUserData();
 	}
 }
