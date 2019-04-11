@@ -64,6 +64,9 @@ public:
 	///请求查询投资者结算结果响应
 	virtual void OnRspQrySettlementInfo(CThostFtdcSettlementInfoField *pSettlementInfo, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast);
 
+	///投资者结算结果确认响应
+	virtual void OnRspSettlementInfoConfirm(CThostFtdcSettlementInfoConfirmField *pSettlementInfoConfirm, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast);
+
 	///报单录入请求响应
 	virtual void OnRspOrderInsert(CThostFtdcInputOrderField* pInputOrder, CThostFtdcRspInfoField* pRspInfo, int nRequestID, bool bIsLast);
 
@@ -184,6 +187,8 @@ private:
 
 	std::atomic_bool m_need_query_settlement;
 
+	std::atomic_int m_confirm_settlement_status;
+
 	std::atomic_int m_req_position_id;
 
 	std::atomic_int m_req_account_id;
@@ -281,6 +286,8 @@ private:
 
 	void ProcessQrySettlementInfo(std::shared_ptr<CThostFtdcSettlementInfoField> pSettlementInfo,bool bIsLast);
 
+	void ProcessSettlementInfoConfirm(std::shared_ptr<CThostFtdcSettlementInfoConfirmField> pSettlementInfoConfirm,bool bIsLast);
+
 	void ReqQrySettlementInfoConfirm();
 
 	void ProcessQrySettlementInfoConfirm(std::shared_ptr<CThostFtdcSettlementInfoConfirmField> pSettlementInfoConfirm);
@@ -312,6 +319,8 @@ private:
 	void SendUserData();
 
 	void SendUserDataImd(int connectId);
+
+	void ReSendSettlementInfo(int connectId);
 
 	void ProcessUserPasswordUpdateField(std::shared_ptr<CThostFtdcUserPasswordUpdateField> pUserPasswordUpdate,
 		std::shared_ptr<CThostFtdcRspInfoField> pRspInfo);

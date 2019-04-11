@@ -63,6 +63,7 @@ traderctp::traderctp(boost::asio::io_context& ios
 	m_next_send_dt = 0;
 	
 	m_need_query_settlement.store(false);
+	m_confirm_settlement_status.store(0);
 	m_req_account_id.store(0);
 
 	m_req_position_id.store(0);	
@@ -362,6 +363,15 @@ void traderctp::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 		}
 		else if (aid == "confirm_settlement") 
 		{			
+			Log(LOG_INFO, NULL, "trade ctp receive confirm_settlement msg=%s,instance=%p,UserID=%s,conn id:%d"
+				, msg.c_str()
+				, this
+				, _req_login.user_name.c_str()
+				, connId);
+			if (0 == m_confirm_settlement_status.load())
+			{
+				m_confirm_settlement_status.store(1);
+			}
 			ReqConfirmSettlement();
 		}		
 	}	
@@ -555,7 +565,10 @@ void traderctp::ProcessReqLogIn(int connId,ReqLogin& req)
 			_ios_out.post(boost::bind(&traderctp::SendMsg, this, connId, msg_ptr));
 						
 			//发送用户数据
-			SendUserDataImd(connId);			
+			SendUserDataImd(connId);	
+
+			//重发结算结果确认信息
+			ReSendSettlementInfo(connId);
 		}
 		else
 		{

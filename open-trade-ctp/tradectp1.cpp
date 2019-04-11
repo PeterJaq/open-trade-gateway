@@ -379,6 +379,7 @@ void traderctp::ProcessOnRspUserLogin(std::shared_ptr<CThostFtdcRspUserLoginFiel
 		m_session_id = pRspUserLogin->SessionID;
 		m_order_ref = atoi(pRspUserLogin->MaxOrderRef) + 1;
 		OutputNotifyAllSycn(0, u8"交易服务器重登录成功");
+		//AfterLogin();
 	}	
 }
 
@@ -387,7 +388,7 @@ void traderctp::ReqConfirmSettlement()
 	CThostFtdcSettlementInfoConfirmField field;
 	memset(&field, 0, sizeof(field));
 	strcpy_x(field.BrokerID, m_broker_id.c_str());
-	strcpy_x(field.InvestorID,_req_login.user_name.c_str());
+	strcpy_x(field.InvestorID,_req_login.user_name.c_str());	
 	int r = m_pTdApi->ReqSettlementInfoConfirm(&field,0);
 	Log(LOG_INFO, NULL,
 		"ctp ReqConfirmSettlement, instance=%p, InvestorID=%s, ret=%d"
@@ -412,12 +413,25 @@ void traderctp::ProcessQrySettlementInfoConfirm(std::shared_ptr<CThostFtdcSettle
 {	
 	Log(LOG_INFO, NULL, "ctp ProcessQrySettlementInfoConfirm, instance=%p, UserID=%s, ConfirmDate=%s"
 		, this,_req_login.user_name.c_str()
-		, pSettlementInfoConfirm ? pSettlementInfoConfirm->ConfirmDate:"");
-	if (pSettlementInfoConfirm && std::string(pSettlementInfoConfirm->ConfirmDate) >= m_trading_day)
+		,(nullptr != pSettlementInfoConfirm) ? pSettlementInfoConfirm->ConfirmDate:"");
+	if((nullptr!= pSettlementInfoConfirm)
+		&&(std::string(pSettlementInfoConfirm->ConfirmDate) >= m_trading_day))
 	{
+		Log(LOG_INFO, NULL, "已经确认过结算单, instance=%p, UserID=%s, ConfirmDate=%s"
+			, this
+			, _req_login.user_name.c_str()
+			, (nullptr != pSettlementInfoConfirm) ? pSettlementInfoConfirm->ConfirmDate : "");
+		//已经确认过结算单
+		m_confirm_settlement_status.store(2);
 		return;
 	}		
+	//还没有确认过结算单
+	Log(LOG_INFO, NULL, "还没有确认过结算单, instance=%p, UserID=%s, ConfirmDate=%s"
+		, this
+		, _req_login.user_name.c_str()
+		, (nullptr != pSettlementInfoConfirm) ? pSettlementInfoConfirm->ConfirmDate : "");
 	m_need_query_settlement.store(true);
+	m_confirm_settlement_status.store(0);
 }
 
 void traderctp::OnRspQrySettlementInfoConfirm(
@@ -427,7 +441,7 @@ void traderctp::OnRspQrySettlementInfoConfirm(
 	std::shared_ptr<CThostFtdcSettlementInfoConfirmField> ptr = nullptr;
 	if (nullptr != pSettlementInfoConfirm)
 	{
-		ptr == std::make_shared<CThostFtdcSettlementInfoConfirmField>(
+		ptr = std::make_shared<CThostFtdcSettlementInfoConfirmField>(
 			CThostFtdcSettlementInfoConfirmField(*pSettlementInfoConfirm));		
 	}
 	_ios.post(boost::bind(&traderctp::ProcessQrySettlementInfoConfirm,this,ptr));
@@ -440,7 +454,10 @@ void  traderctp::ProcessQrySettlementInfo(std::shared_ptr<CThostFtdcSettlementIn
 		m_need_query_settlement.store(false);
 		std::string str= GBKToUTF8(pSettlementInfo->Content);
 		m_settlement_info += str;
-		OutputNotifyAllSycn(0,m_settlement_info,"INFO","SETTLEMENT");		
+		if (0 == m_confirm_settlement_status.load())
+		{
+			OutputNotifyAllSycn(0, m_settlement_info, "INFO", "SETTLEMENT");
+		}				
 	}
 	else
 	{
@@ -459,6 +476,42 @@ void traderctp::OnRspQrySettlementInfo(CThostFtdcSettlementInfoField *pSettlemen
 		= std::make_shared<CThostFtdcSettlementInfoField>
 		(CThostFtdcSettlementInfoField(*pSettlementInfo));
 	_ios.post(boost::bind(&traderctp::ProcessQrySettlementInfo,this,ptr,bIsLast));	
+}
+
+void traderctp::ProcessSettlementInfoConfirm(std::shared_ptr<CThostFtdcSettlementInfoConfirmField> pSettlementInfoConfirm
+	, bool bIsLast)
+{
+	if (nullptr == pSettlementInfoConfirm)
+	{
+		return;
+	}
+	   
+	Log(LOG_INFO, NULL,
+		"ctp ProcessSettlementInfoConfirm, instance=%p,bIsLast=%s,InvestorID=%s, ConfirmDate=%s,ConfirmTime=%s"
+		, this
+		, bIsLast?"true":"false"
+		, pSettlementInfoConfirm->InvestorID
+		, pSettlementInfoConfirm->ConfirmDate
+		, pSettlementInfoConfirm->ConfirmTime);
+
+	if (bIsLast)
+	{
+		m_confirm_settlement_status.store(2);
+	}
+}
+
+void traderctp::OnRspSettlementInfoConfirm(CThostFtdcSettlementInfoConfirmField *pSettlementInfoConfirm
+	, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast)
+{
+	if (nullptr== pSettlementInfoConfirm)
+	{
+		return;
+	}
+
+	std::shared_ptr<CThostFtdcSettlementInfoConfirmField> ptr
+		= std::make_shared<CThostFtdcSettlementInfoConfirmField>
+		(CThostFtdcSettlementInfoConfirmField(*pSettlementInfoConfirm));
+	_ios.post(boost::bind(&traderctp::ProcessSettlementInfoConfirm, this, ptr, bIsLast));
 }
 
 void traderctp::ProcessUserPasswordUpdateField(std::shared_ptr<CThostFtdcUserPasswordUpdateField> pUserPasswordUpdate,
@@ -1284,7 +1337,15 @@ void traderctp::ProcessQryAccountregister(std::shared_ptr<CThostFtdcAccountregis
 
 	Bank& bank = GetBank(pAccountregister->BankID);
 	bank.changed = true;
-	m_banks.insert(std::map<std::string, Bank>::value_type(bank.bank_id,bank));	
+	std::map<std::string, Bank>::iterator it = m_banks.find(bank.bank_id);
+	if (it == m_banks.end())
+	{
+		m_banks.insert(std::map<std::string, Bank>::value_type(bank.bank_id, bank));
+	}
+	else
+	{
+		it->second = bank;
+	}	
 	if (bIsLast) 
 	{
 		m_need_query_register.store(false);

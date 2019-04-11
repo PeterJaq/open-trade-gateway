@@ -138,6 +138,13 @@ void traderctp::OnIdle()
 		m_next_qry_dt = now + 1100;
 		return;
 	}
+
+	if (m_confirm_settlement_status.load() == 1)
+	{
+		ReqConfirmSettlement();
+		m_next_qry_dt = now + 1100;
+		return;
+	}
 }
 
 int traderctp::ReqQryBrokerTradingParams()
@@ -191,7 +198,7 @@ int traderctp::ReqQryPosition(int reqid)
 void traderctp::ReqQryBank()
 {
 	CThostFtdcQryContractBankField field;
-	memset(&field, 0, sizeof(field));
+	memset(&field,0,sizeof(field));
 	strcpy_x(field.BrokerID, m_broker_id.c_str());
 	m_pTdApi->ReqQryContractBank(&field, 0);
 	int r = m_pTdApi->ReqQryContractBank(&field, 0);
@@ -244,6 +251,26 @@ Trade& traderctp::GetTrade(const std::string trade_key)
 TransferLog& traderctp::GetTransferLog(const std::string& seq_id)
 {
 	return m_data.m_transfers[seq_id];
+}
+
+void traderctp::ReSendSettlementInfo(int connectId)
+{
+	if (m_need_query_settlement.load())
+	{
+		return;
+	}
+
+	if (m_settlement_info.empty())
+	{
+		return;
+	}
+
+	if (m_confirm_settlement_status.load() != 0)
+	{
+		return;
+	}
+
+	OutputNotifySycn(connectId, 0, m_settlement_info, "INFO", "SETTLEMENT");
 }
 
 void traderctp::SendUserDataImd(int connectId)
@@ -524,6 +551,10 @@ void traderctp::AfterLogin()
 {
 	if (g_config.auto_confirm_settlement)
 	{
+		if (0 == m_confirm_settlement_status.load())
+		{
+			m_confirm_settlement_status.store(1);
+		}
 		ReqConfirmSettlement();
 	}
 	else if (m_settlement_info.empty())
