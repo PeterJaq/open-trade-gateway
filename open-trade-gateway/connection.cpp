@@ -114,7 +114,8 @@ void connection::SendTextMsg(const std::string &msg)
 {
 	std::shared_ptr<std::string> msg_ptr =
 		std::shared_ptr<std::string>(new std::string(msg));
-	m_ios.post(std::bind(&connection::SendTextMsg_i,this,msg_ptr));
+	m_ios.post(std::bind(&connection::SendTextMsg_i
+		,shared_from_this(),msg_ptr));
 }
 
 void connection::SendTextMsg_i(std::shared_ptr<std::string> msg_ptr)
@@ -138,6 +139,10 @@ void connection::SendTextMsg_i(std::shared_ptr<std::string> msg_ptr)
 
 void connection::DoWrite()
 {
+	if (m_output_buffer.empty())
+	{
+		return;
+	}
 	auto write_buf = boost::asio::buffer(m_output_buffer.front());
 	m_ws_socket.text(true);
 	m_ws_socket.async_write(
@@ -182,11 +187,17 @@ void connection::OnWrite(boost::system::error_code ec,std::size_t bytes_transfer
 	if (ec)
 	{
 		Log(LOG_WARNING, NULL, "trade server send message fail");
+		OnCloseConnection();
+		return;
 	}		
 	else
 	{
 		Log(LOG_INFO, NULL, "trade server send message success, session=%p, len=%d", this, bytes_transferred);
 	}		
+	if (m_output_buffer.empty())
+	{
+		return;
+	}
 	m_output_buffer.pop_front();
 	if (m_output_buffer.size() > 0) 
 	{
@@ -210,10 +221,6 @@ void connection::OnMessage(const std::string &json_str)
 
 	if (req.aid == "req_login")
 	{
-		Log(LOG_INFO, NULL
-			,"msg:%s"
-			,json_str.c_str());
-
 		Log(LOG_INFO, NULL
 			, "req_login client_system_info:%s,client_app_id:%s"
 			, req.client_system_info.c_str()
