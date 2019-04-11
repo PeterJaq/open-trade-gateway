@@ -189,11 +189,7 @@ void connection::OnWrite(boost::system::error_code ec,std::size_t bytes_transfer
 		Log(LOG_WARNING, NULL, "trade server send message fail");
 		OnCloseConnection();
 		return;
-	}		
-	else
-	{
-		Log(LOG_INFO, NULL, "trade server send message success, session=%p, len=%d", this, bytes_transferred);
-	}		
+	}				
 	if (m_output_buffer.empty())
 	{
 		return;
