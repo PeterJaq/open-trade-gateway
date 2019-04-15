@@ -491,8 +491,13 @@ void traderctp::OnClientReqInsertOrder(CtpActionInsertOrder d)
 	std::stringstream ss;
 	ss << m_front_id << m_session_id << d.f.OrderRef;
 	std::string strKey = ss.str();
-	m_input_order_key_map.insert(
-		std::map<std::string, std::string>::value_type(strKey,strKey));
+	ServerOrderInfo serverOrder;
+	serverOrder.InstrumentId = rkey.instrument_id;
+	serverOrder.ExchangeId = rkey.exchange_id;
+	serverOrder.VolumeOrigin = d.f.VolumeTotalOriginal;
+	serverOrder.VolumeLeft = d.f.VolumeTotalOriginal;
+	m_input_order_key_map.insert(std::map<std::string
+		, ServerOrderInfo>::value_type(strKey, serverOrder));
 	
 	int r = m_pTdApi->ReqOrderInsert(&d.f, 0);
 	Log(LOG_INFO, NULL

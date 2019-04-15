@@ -821,7 +821,7 @@ void traderctp::ProcessErrRtnOrderInsert(std::shared_ptr<CThostFtdcInputOrderFie
 		, pRspInfo ? pRspInfo->ErrorID : -999);
 
 	if (pInputOrder && pRspInfo && pRspInfo->ErrorID != 0)
-	{		
+	{	
 		std::stringstream ss;
 		ss << m_front_id << m_session_id << pInputOrder->OrderRef;
 		std::string strKey = ss.str();
@@ -983,8 +983,8 @@ void traderctp::ProcessErrRtnOrderAction(std::shared_ptr<CThostFtdcOrderActionFi
 
 	if (pOrderAction && pRspInfo && pRspInfo->ErrorID != 0)
 	{
-		std::stringstream ss;
-		ss << m_front_id << m_session_id << pOrderAction->OrderRef;
+		std::stringstream ss;		
+		ss << pOrderAction->FrontID << pOrderAction->SessionID << pOrderAction->OrderRef;
 		std::string strKey = ss.str();		
 		auto it = m_action_order_map.find(strKey);
 		if (it!= m_action_order_map.end())
@@ -1455,6 +1455,7 @@ void traderctp::ProcessFromBankToFutureByFuture(
 		d.datetime = DateTimeToEpochNano(&dt);
 		d.error_id = pRspTransfer->ErrorID;
 		d.error_msg = GBKToUTF8(pRspTransfer->ErrorMsg);
+		OutputNotifyAllSycn(0, u8"转账成功");
 		m_something_changed = true;
 		SendUserData();
 		m_req_account_id++;
@@ -1550,6 +1551,15 @@ void traderctp::ProcessRtnOrder(std::shared_ptr<CThostFtdcOrderField> pOrder)
 		, pOrder->InstrumentID
 		, pOrder->OrderRef
 		, pOrder->SessionID);
+
+	if (nullptr == pOrder)
+	{
+		return;
+	}
+	
+	std::stringstream ss;
+	ss << pOrder->FrontID << pOrder->SessionID << pOrder->OrderRef;
+	std::string strKey = ss.str();
 	
 	//找到委托单
 	trader_dll::RemoteOrderKey remote_key;
@@ -1707,6 +1717,16 @@ void traderctp::ProcessRtnOrder(std::shared_ptr<CThostFtdcOrderField> pOrder)
 			m_insert_order_set.erase(it);
 			OutputNotifyAllSycn(1,u8"下单成功");
 		}
+		
+		//更新Order Key		
+		auto itOrder = m_input_order_key_map.find(strKey);
+		if (itOrder != m_input_order_key_map.end())
+		{
+			ServerOrderInfo& serverOrderInfo = itOrder->second;
+			serverOrderInfo.OrderLocalID = pOrder->OrderLocalID;
+			serverOrderInfo.OrderSysID = pOrder->OrderSysID;
+		}
+
 	}
 	
 	if (pOrder->OrderStatus == THOST_FTDC_OST_Canceled
@@ -1717,6 +1737,13 @@ void traderctp::ProcessRtnOrder(std::shared_ptr<CThostFtdcOrderField> pOrder)
 		{
 			m_cancel_order_set.erase(it);
 			OutputNotifyAllSycn(1,u8"撤单成功");
+
+			//删除Order
+			auto itOrder = m_input_order_key_map.find(strKey);
+			if (itOrder != m_input_order_key_map.end())
+			{
+				m_input_order_key_map.erase(itOrder);
+			}
 		}
 		else
 		{
@@ -1725,6 +1752,13 @@ void traderctp::ProcessRtnOrder(std::shared_ptr<CThostFtdcOrderField> pOrder)
 			{
 				m_insert_order_set.erase(it2);
 				OutputNotifyAllSycn(1,u8"下单失败," + order.last_msg, "WARNING");
+			}
+
+			//删除Order
+			auto itOrder = m_input_order_key_map.find(strKey);
+			if (itOrder != m_input_order_key_map.end())
+			{
+				m_input_order_key_map.erase(itOrder);
 			}
 		}
 	}
@@ -1751,6 +1785,31 @@ void traderctp::ProcessRtnTrade(std::shared_ptr<CThostFtdcTradeField> pTrade)
 		, pTrade->InstrumentID
 		, pTrade->OrderRef);
 
+	std::string exchangeId = pTrade->ExchangeID;
+	std::string orderSysId = pTrade->OrderSysID;
+	for (std::map<std::string, ServerOrderInfo>::iterator it = m_input_order_key_map.begin();
+		it != m_input_order_key_map.end(); it++)
+	{
+		ServerOrderInfo& serverOrderInfo = it->second;
+		if ((serverOrderInfo.ExchangeId == exchangeId)
+			&& (serverOrderInfo.OrderSysID== orderSysId))
+		{
+			serverOrderInfo.VolumeLeft -= pTrade->Volume;
+			
+			std::stringstream ss;
+			ss << u8"成交通知,合约:" << serverOrderInfo.ExchangeId
+				<< u8"." << serverOrderInfo.InstrumentId << u8",手数:" << pTrade->Volume
+				<< u8",价格:"<< pTrade->Price<<"!";
+			OutputNotifyAllSycn(0,ss.str().c_str());
+
+			if (serverOrderInfo.VolumeLeft <= 0)
+			{
+				m_input_order_key_map.erase(it);
+			}
+			break;
+		}
+	}
+	
 	LocalOrderKey local_key;
 	FindLocalOrderId(pTrade->ExchangeID, pTrade->OrderSysID, &local_key);
 	std::string trade_key = local_key.order_id + "|" + std::string(pTrade->TradeID);

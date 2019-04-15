@@ -42,6 +42,31 @@ namespace trader_dll
 		}
 	};
 
+	struct ServerOrderInfo
+	{
+		ServerOrderInfo()
+			:ExchangeId("")
+			, InstrumentId("")
+			, VolumeOrigin(0)
+			, VolumeLeft(0)
+			, OrderLocalID("")
+			, OrderSysID("")
+		{
+		}
+
+		std::string ExchangeId;
+
+		std::string InstrumentId;
+
+		int VolumeOrigin;
+
+		int VolumeLeft;
+
+		std::string	OrderLocalID;
+
+		std::string	OrderSysID;
+	};
+
 	struct OrderKeyPair
 	{
 		LocalOrderKey local_key;

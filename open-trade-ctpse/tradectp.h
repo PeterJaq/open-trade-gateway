@@ -210,7 +210,7 @@ private:
 
 	std::atomic_int m_rsp_account_id;
 
-	std::map<std::string,std::string> m_input_order_key_map;
+	std::map<std::string, ServerOrderInfo> m_input_order_key_map;
 	
 	std::map<std::string, std::string> m_action_order_map;
 
