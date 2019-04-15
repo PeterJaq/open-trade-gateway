@@ -133,8 +133,10 @@ void trade_server::stop()
 	for (auto it:g_userProcessInfoMap)
 	{
 		UserProcessInfo_ptr& pro_ptr = it.second;
-		pro_ptr->user_connections_.clear();		
-		pro_ptr->StopProcess();
+		if (nullptr != pro_ptr)
+		{
+			pro_ptr->StopProcess();
+		}		
 	}	
 	g_userProcessInfoMap.clear();
 }

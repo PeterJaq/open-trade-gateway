@@ -26,7 +26,7 @@ int main(int argc, char* argv[])
 	{
 		return -1;
 	}
-
+		
 	Log(LOG_INFO, NULL
 		, "trade ctp %s init"
 		,logFileName.c_str());

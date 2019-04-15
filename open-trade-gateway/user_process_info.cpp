@@ -12,26 +12,24 @@
 using namespace std::chrono;
 
 UserProcessInfo::UserProcessInfo(boost::asio::io_context& ios
+	, const std::string& key
 	, const ReqLogin& reqLogin)
 	:io_context_(ios)
-	, _out_mq_ptr()
-	, _out_mq_name("")
-	, _thread_ptr()
+	,_key(key)
+	,_reqLogin(reqLogin)
+	,_out_mq_ptr()
+	,_out_mq_name("")
+	,_run_thread(true)
+	,_thread_ptr()
 	,_in_mq_ptr()
 	,_in_mq_name("")	
 	,_process_ptr()	
-	,user_connections_()
-	,_reqLogin(reqLogin)	
+	,user_connections_()	
 {
 }
 
-bool UserProcessInfo::ProcessIsRunning()
+UserProcessInfo::~UserProcessInfo()
 {
-	if (nullptr == _process_ptr)
-	{
-		return false;
-	}
-	return _process_ptr->running();
 }
 
 bool UserProcessInfo::StartProcess()
@@ -40,127 +38,24 @@ bool UserProcessInfo::StartProcess()
 	{
 		if(_reqLogin.broker.broker_type == "ctp")
 		{			
-			std::string cmd = "ctp_" + _reqLogin.bid + "_" + _reqLogin.user_name;	
-
-			_out_mq_name = cmd + "_msg_out";
-			_in_mq_name = cmd + "_msg_in";
+			std::string cmd = "ctp_" + _reqLogin.bid + "_" + _reqLogin.user_name;
 			
-			boost::interprocess::message_queue::remove(_out_mq_name.c_str());
-			boost::interprocess::message_queue::remove(_in_mq_name.c_str());
-
-			_out_mq_ptr = std::shared_ptr <boost::interprocess::message_queue>
-				(new boost::interprocess::message_queue(boost::interprocess::create_only
-					, _out_mq_name.c_str(),MAX_MSG_NUMS,MAX_MSG_LENTH));
-			_thread_ptr.reset();
-			
-			_thread_ptr = std::shared_ptr<boost::thread>(
-				new boost::thread(boost::bind(&UserProcessInfo::ReceiveMsg_i,this)));
-
-			_in_mq_ptr= std::shared_ptr <boost::interprocess::message_queue>
-				(new boost::interprocess::message_queue(boost::interprocess::create_only
-					,_in_mq_name.c_str(),MAX_MSG_NUMS, MAX_MSG_LENTH));
-
-			_process_ptr = std::make_shared<boost::process::child>(boost::process::child(
-				boost::process::search_path("open-trade-ctp")
-				,cmd.c_str()));
-			if (nullptr == _process_ptr)
-			{
-				return false;
-			}
-			return _process_ptr->running();
+			return StartProcess_i("open-trade-ctp", cmd);			
 		}
 		else if (_reqLogin.broker.broker_type == "ctpse")
 		{
-			std::string cmd = "ctpse_" + _reqLogin.bid + "_" + _reqLogin.user_name;
-
-			_out_mq_name = cmd + "_msg_out";
-			_in_mq_name = cmd + "_msg_in";
-
-			boost::interprocess::message_queue::remove(_out_mq_name.c_str());
-			boost::interprocess::message_queue::remove(_in_mq_name.c_str());
-
-			_out_mq_ptr = std::shared_ptr <boost::interprocess::message_queue>
-				(new boost::interprocess::message_queue(boost::interprocess::create_only
-					, _out_mq_name.c_str(), MAX_MSG_NUMS, MAX_MSG_LENTH));
-			_thread_ptr.reset();
-
-			_thread_ptr = std::shared_ptr<boost::thread>(
-				new boost::thread(boost::bind(&UserProcessInfo::ReceiveMsg_i, this)));
-
-			_in_mq_ptr = std::shared_ptr <boost::interprocess::message_queue>
-				(new boost::interprocess::message_queue(boost::interprocess::create_only
-					, _in_mq_name.c_str(), MAX_MSG_NUMS, MAX_MSG_LENTH));
-
-			_process_ptr = std::make_shared<boost::process::child>(boost::process::child(
-				boost::process::search_path("open-trade-ctpse")
-				, cmd.c_str()));
-			if (nullptr == _process_ptr)
-			{
-				return false;
-			}
-			return _process_ptr->running();
+			std::string cmd = "ctpse_" + _reqLogin.bid + "_" + _reqLogin.user_name;			
+			return StartProcess_i("open-trade-ctpse", cmd);
 		}
 		else if (_reqLogin.broker.broker_type == "sim")
 		{
 			std::string cmd = "sim_" + _reqLogin.bid + "_" + _reqLogin.user_name;
-			
-			_out_mq_name = cmd + "_msg_out";
-			_in_mq_name = cmd + "_msg_in";
-
-			boost::interprocess::message_queue::remove(_out_mq_name.c_str());
-			boost::interprocess::message_queue::remove(_in_mq_name.c_str());
-
-			_out_mq_ptr = std::shared_ptr <boost::interprocess::message_queue>
-				(new boost::interprocess::message_queue(boost::interprocess::create_only
-					, _out_mq_name.c_str(),MAX_MSG_NUMS, MAX_MSG_LENTH));
-
-			_thread_ptr.reset();
-			_thread_ptr = std::shared_ptr<boost::thread>(
-				new boost::thread(boost::bind(&UserProcessInfo::ReceiveMsg_i, this)));
-
-			_in_mq_ptr = std::shared_ptr <boost::interprocess::message_queue>
-				(new boost::interprocess::message_queue(boost::interprocess::create_only
-					, _in_mq_name.c_str(),MAX_MSG_NUMS,MAX_MSG_LENTH));
-
-			_process_ptr = std::make_shared<boost::process::child>(boost::process::child(
-				boost::process::search_path("open-trade-sim")
-				,cmd.c_str()));
-			if (nullptr == _process_ptr)
-			{
-				return false;
-			}
-			return _process_ptr->running();
+			return StartProcess_i("open-trade-sim", cmd);			
 		}
 		else if (_reqLogin.broker.broker_type == "perftest")
 		{
 			std::string cmd = "perftest_" + _reqLogin.bid + "_" + _reqLogin.user_name;
-
-			_out_mq_name = cmd + "_msg_out";
-			_in_mq_name = cmd + "_msg_in";
-
-			boost::interprocess::message_queue::remove(_out_mq_name.c_str());
-			boost::interprocess::message_queue::remove(_in_mq_name.c_str());
-
-			_out_mq_ptr = std::shared_ptr <boost::interprocess::message_queue>
-				(new boost::interprocess::message_queue(boost::interprocess::create_only
-					, _out_mq_name.c_str(), MAX_MSG_NUMS, MAX_MSG_LENTH));
-
-			_thread_ptr.reset();
-			_thread_ptr = std::shared_ptr<boost::thread>(
-				new boost::thread(boost::bind(&UserProcessInfo::ReceiveMsg_i, this)));
-
-			_in_mq_ptr = std::shared_ptr <boost::interprocess::message_queue>
-				(new boost::interprocess::message_queue(boost::interprocess::create_only
-					, _in_mq_name.c_str(), MAX_MSG_NUMS, MAX_MSG_LENTH));
-
-			_process_ptr = std::make_shared<boost::process::child>(boost::process::child(
-				boost::process::search_path("open-trade-perftest")
-				, cmd.c_str()));
-			if (nullptr == _process_ptr)
-			{
-				return false;
-			}
-			return _process_ptr->running();
+			return StartProcess_i("open-trade-perftest",cmd);
 		}
 		else
 		{
@@ -181,13 +76,46 @@ void UserProcessInfo::StopProcess()
 {
 	if ((nullptr != _process_ptr)
 		&&(_process_ptr->running()))
-	{
-		user_connections_.clear();
-		_thread_ptr.reset();
-		boost::interprocess::message_queue::remove(_out_mq_name.c_str());
-		boost::interprocess::message_queue::remove(_in_mq_name.c_str());
+	{		
 		_process_ptr->terminate();
+		_process_ptr->wait();
+		_process_ptr.reset();		
 	}
+
+	if (nullptr != _thread_ptr)
+	{
+		_run_thread.store(false);
+		_thread_ptr->detach();
+		_thread_ptr.reset();
+	}
+
+	user_connections_.clear();	
+	if (nullptr != _out_mq_ptr)
+	{		
+		boost::interprocess::message_queue::remove(_out_mq_name.c_str());
+		_out_mq_ptr.reset();		
+	}
+
+	if (nullptr != _in_mq_ptr)
+	{
+		boost::interprocess::message_queue::remove(_in_mq_name.c_str());
+		_in_mq_ptr.reset();		
+	}
+
+	TUserProcessInfoMap::iterator it = g_userProcessInfoMap.find(_key);
+	if (it != g_userProcessInfoMap.end())
+	{
+		g_userProcessInfoMap.erase(it);
+	}	
+}
+
+bool UserProcessInfo::ProcessIsRunning()
+{
+	if (nullptr == _process_ptr)
+	{
+		return false;
+	}
+	return _process_ptr->running();
 }
 
 void UserProcessInfo::SendMsg(int connid,const std::string& msg)
@@ -222,7 +150,7 @@ void UserProcessInfo::NotifyClose(int connid)
 	}
 
 	std::stringstream ss;
-	ss << connid;
+	ss << connid << "|"<< CLOSE_CONNECTION_MSG;
 	std::string str = ss.str();
 	try
 	{
@@ -236,26 +164,68 @@ void UserProcessInfo::NotifyClose(int connid)
 	}
 }
 
-void UserProcessInfo::ReceiveMsg_i()
+void UserProcessInfo::Child_Exit_handle(boost::system::error_code ec, int code)
+{
+	if (ec)
+	{
+		Log(LOG_WARNING,NULL
+			, "UserProcessInfo Child_Exit_handle Erorr,msg=%s"
+			,ec.message().c_str());		
+	}
+	else
+	{
+		Log(LOG_WARNING
+			, NULL
+			, "UserProcessInfo Child_Exit_handle,code=%d"
+			, code);
+	}
+}
+
+bool UserProcessInfo::StartProcess_i(const std::string& name, const std::string& cmd)
 {	
-	std::string _str_packge_splited="";
-	bool _packge_is_begin=false;
+	_out_mq_name = cmd + "_msg_out";
+	_in_mq_name = cmd + "_msg_in";
+	boost::interprocess::message_queue::remove(_out_mq_name.c_str());
+	boost::interprocess::message_queue::remove(_in_mq_name.c_str());
+
+	_out_mq_ptr = std::shared_ptr <boost::interprocess::message_queue>
+		(new boost::interprocess::message_queue(boost::interprocess::create_only
+			, _out_mq_name.c_str(), MAX_MSG_NUMS, MAX_MSG_LENTH));
+	_thread_ptr.reset();
+
+	_thread_ptr = std::shared_ptr<boost::thread>(
+		new boost::thread(boost::bind(&UserProcessInfo::ReceiveMsg_i,shared_from_this())));
+
+	_in_mq_ptr = std::shared_ptr <boost::interprocess::message_queue>
+		(new boost::interprocess::message_queue(boost::interprocess::create_only
+			, _in_mq_name.c_str(), MAX_MSG_NUMS, MAX_MSG_LENTH));
+	
+	_process_ptr = std::make_shared<boost::process::child>(boost::process::child(
+		boost::process::search_path(name)
+		,cmd.c_str()));
+	if (nullptr == _process_ptr)
+	{
+		return false;
+	}
+	return _process_ptr->running();
+}
+
+void UserProcessInfo::ReceiveMsg_i()
+{
+	std::string _str_packge_splited = "";
+	bool _packge_is_begin = false;
 	char buf[MAX_MSG_LENTH];
 	unsigned int priority;
-	long long now1 = 0;
-	long long now2 = 0;
 	boost::interprocess::message_queue::size_type recvd_size;
-	while (true)
+	while (_run_thread)
 	{
 		try
 		{
-			memset(buf,0,sizeof(buf));
-			_out_mq_ptr->receive(buf, sizeof(buf), recvd_size, priority);	
+			memset(buf, 0, sizeof(buf));
+			_out_mq_ptr->receive(buf, sizeof(buf), recvd_size, priority);
 			std::string msg(buf);
 			if (msg == BEGIN_OF_PACKAGE)
 			{
-				now1 =
-					duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 				_str_packge_splited = "";
 				_packge_is_begin = true;
 				continue;
@@ -268,11 +238,8 @@ void UserProcessInfo::ReceiveMsg_i()
 					std::shared_ptr<std::string> msg_ptr =
 						std::shared_ptr<std::string>(new std::string(_str_packge_splited));
 					io_context_.post(boost::bind(&UserProcessInfo::ProcessMsg
-						, this,msg_ptr));					
+						, shared_from_this(),msg_ptr));
 				}
-				now2 =duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
-				int ms = static_cast<int>(now2 - now1);
-				Log(LOG_INFO, NULL, "UserProcessInfo::ReceiveMsg time:%d", ms);
 				continue;
 			}
 			else
@@ -287,57 +254,55 @@ void UserProcessInfo::ReceiveMsg_i()
 					std::shared_ptr<std::string> msg_ptr =
 						std::shared_ptr<std::string>(new std::string(msg));
 					io_context_.post(boost::bind(&UserProcessInfo::ProcessMsg
-						, this, msg_ptr));
+						, shared_from_this(),msg_ptr));
 					continue;
 				}
-			}			
+			}
 		}
 		catch (const std::exception& ex)
 		{
-			Log(LOG_ERROR,NULL,"ReceiveMsg_i Erro:%s",ex.what());
-		}		
-	}	
-	boost::interprocess::message_queue::remove(_out_mq_name.c_str());
+			Log(LOG_ERROR, NULL, "ReceiveMsg_i Erro:%s", ex.what());
+		}
+	}
 }
 
 void UserProcessInfo::ProcessMsg(std::shared_ptr<std::string> msg_ptr)
 {	
-	if (nullptr == msg_ptr)
+	if (nullptr== msg_ptr)
 	{
 		return;
 	}
 
-	std::string msg = *msg_ptr;	
+	std::string& msg = *msg_ptr;
 
-	std::vector<std::string> items;
-	boost::algorithm::split(items, msg, boost::algorithm::is_any_of("#"));
-	//正常的数据
-	if (2 == items.size())
+	int nPos = msg.find_first_of('#');
+	if ((nPos <= 0) || (nPos + 1 >= msg.length()))
 	{
-		std::string strIds = items[0];
-		std::string strMsg = items[1];
-		std::vector<std::string> ids;
-		boost::algorithm::split(ids, strIds, boost::algorithm::is_any_of("|"));
-		for (auto strId : ids)
+		return;
+	}
+
+
+	std::string strIds = msg.substr(0, nPos);
+	std::string strMsg = msg.substr(nPos + 1);
+	if (strIds.empty() || strMsg.empty())
+	{
+		return;
+	}
+	
+	std::vector<std::string> ids;
+	boost::algorithm::split(ids,strIds,boost::algorithm::is_any_of("|"));
+	for (auto strId : ids)
+	{
+		int nId = atoi(strId.c_str());
+		auto it = user_connections_.find(nId);
+		if (it == user_connections_.end())
 		{
-			int nId = atoi(strId.c_str());
-			auto it = user_connections_.find(nId);
-			if (it == user_connections_.end())
-			{
-				continue;
-			}
-			connection_ptr conn_ptr = it->second;
-			if (nullptr != conn_ptr)
-			{
-				conn_ptr->SendTextMsg(strMsg);
-			}
+			continue;
 		}
-	}
-	else
-	{
-		Log(LOG_WARNING, NULL
-			, "UserProcessInfo receive invalid message from trade instance:%s!"
-			, msg.c_str());
-		return;
+		connection_ptr conn_ptr = it->second;
+		if (nullptr != conn_ptr)
+		{
+			conn_ptr->SendTextMsg(strMsg);
+		}
 	}
 }

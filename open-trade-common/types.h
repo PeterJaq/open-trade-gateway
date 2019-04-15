@@ -46,6 +46,8 @@ const std::string BEGIN_OF_PACKAGE = "#BEGIN_OF_PACKAGE#";
 
 const std::string END_OF_PACKAGE = "#END_OF_PACKAGE#";
 
+const std::string CLOSE_CONNECTION_MSG = "#CLOSE_CONNECTION_MSG#";
+
 struct Instrument
 {
 	Instrument()

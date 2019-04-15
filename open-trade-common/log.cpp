@@ -9,6 +9,7 @@
 #include <mutex>
 #include <ctime>
 #include <sstream>
+#include <iostream>
 
 #include <memory.h>
 #include <unistd.h>

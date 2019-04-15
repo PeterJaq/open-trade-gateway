@@ -100,29 +100,26 @@ void tradersim::ReceiveMsg()
 			{
 				continue;
 			}
-			std::vector<std::string> items;
-			boost::algorithm::split(items, line, boost::algorithm::is_any_of("|"));
 			int connId = -1;
 			std::string msg = "";
-			if (items.size() == 1)
+			int nPos = line.find_first_of('|');
+			if ((nPos <= 0) || (nPos+1 >= line.length()))
 			{
-				msg = items[0];
-			}
-			else if (items.size() == 2)
-			{
-				connId = atoi(items[0].c_str());
-				msg = items[1];
-			}
-			else
-			{
-				Log(LOG_WARNING, NULL,
-					"tradersim ReceiveMsg:%s is invalid!"
+				Log(LOG_WARNING
+					, NULL
+					, "tradersim ReceiveMsg:%s is invalid!"
 					, line.c_str());
 				continue;
 			}
-			std::shared_ptr<std::string> msg_ptr(new std::string(msg));
-			_ios.post(boost::bind(&tradersim::ProcessInMsg
-				, this, connId,msg_ptr));
+			else
+			{
+				std::string strId = line.substr(0, nPos);
+				connId = atoi(strId.c_str());
+				msg = line.substr(nPos + 1);
+				std::shared_ptr<std::string> msg_ptr(new std::string(msg));
+				_ios.post(boost::bind(&tradersim::ProcessInMsg
+					, this, connId, msg_ptr));
+			}
 		}
 		catch (const std::exception& ex)
 		{
@@ -253,7 +250,7 @@ void tradersim::OnInit()
 	}
 	auto bank = &(m_data.m_banks["SIM"]);
 	bank->bank_id = "SIM";
-	bank->bank_name = GBKToUTF8("模拟银行");
+	bank->bank_name = u8"模拟银行";
 	bank->changed = true;
 	m_something_changed = true;	
 	Log(LOG_INFO, NULL,"sim OnInit, UserID=%s",m_user_id.c_str());
@@ -376,12 +373,10 @@ void tradersim::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 	}
 
 	std::string& msg = *msg_ptr;
-
 	//一个特殊的消息
-	if (connId == -1)
+	if (msg == CLOSE_CONNECTION_MSG)
 	{
-		int nCloseConnection = atoi(msg.c_str());
-		CloseConnection(nCloseConnection);
+		CloseConnection(connId);
 		return;
 	}
 

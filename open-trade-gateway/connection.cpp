@@ -38,6 +38,11 @@ connection::connection(boost::asio::io_context& ios
 
 void connection::start()
 {	
+	int fd=m_ws_socket.next_layer().native_handle();
+	int flags = fcntl(fd, F_GETFD);
+	flags |= FD_CLOEXEC;
+	fcntl(fd, F_SETFD, flags);
+
 	req_ = {};
 	boost::beast::http::async_read(m_ws_socket.next_layer()
 		,flat_buffer_
@@ -110,31 +115,17 @@ void connection::on_read_header(boost::beast::error_code ec
 			shared_from_this()));
 }
 
-void connection::SendTextMsg(const std::string &msg)
+void connection::SendTextMsg(const std::string& msg)
 {
-	std::shared_ptr<std::string> msg_ptr =
-		std::shared_ptr<std::string>(new std::string(msg));
-	m_ios.post(std::bind(&connection::SendTextMsg_i
-		,shared_from_this(),msg_ptr));
-}
-
-void connection::SendTextMsg_i(std::shared_ptr<std::string> msg_ptr)
-{
-	if (nullptr == msg_ptr)
-	{
-		return;
-	}
-
-	std::string& msg = *msg_ptr;
-	if (m_output_buffer.size() > 0) 
+	if (m_output_buffer.size() > 0)
 	{
 		m_output_buffer.push_back(msg);
 	}
-	else 
+	else
 	{
 		m_output_buffer.push_back(msg);
 		DoWrite();
-	}
+	}	
 }
 
 void connection::DoWrite()
@@ -254,8 +245,7 @@ void connection::ProcessLogInMessage(const ReqLogin& req, const std::string &jso
 	//如果用户进程没有启动,启动用户进程处理
 	if (userIt == g_userProcessInfoMap.end())
 	{
-		 UserProcessInfo_ptr userProcessInfoPtr = 
-			 std::make_shared<UserProcessInfo>(m_ios,_reqLogin);
+		 UserProcessInfo_ptr userProcessInfoPtr = std::make_shared<UserProcessInfo>(m_ios,_user_broker_key,_reqLogin);
 		 if (nullptr == userProcessInfoPtr)
 		 {
 			 Log(LOG_ERROR, NULL,"new user process fail:%s"

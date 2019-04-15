@@ -126,31 +126,28 @@ void traderctp::ReceiveMsg()
 			if (line.empty())
 			{				
 				continue;
-			}			
-			std::vector<std::string> items;
-			boost::algorithm::split(items, line, boost::algorithm::is_any_of("|"));
+			}		
+
 			int connId = -1;
 			std::string msg = "";
-			if (items.size() == 1)
+			int nPos = line.find_first_of('|');
+			if ((nPos <= 0) || (nPos+1 >= line.length()))
 			{
-				msg = items[0];
-			}
-			else if (items.size() == 2)
-			{
-				connId = atoi(items[0].c_str());
-				msg = items[1];
+				Log(LOG_WARNING
+					, NULL
+					, "traderctp ReceiveMsg:%s is invalid!"
+					, line.c_str());
+				continue;
 			}
 			else
 			{
-				Log(LOG_WARNING
-					,NULL
-					,"traderctp ReceiveMsg:%s is invalid!"
-					,line.c_str());
-				continue;
-			}
-			std::shared_ptr<std::string> msg_ptr(new std::string(msg));
-			_ios.post(boost::bind(&traderctp::ProcessInMsg
-				,this,connId,msg_ptr));
+				std::string strId = line.substr(0,nPos);
+				connId = atoi(strId.c_str());
+				msg = line.substr(nPos + 1);
+				std::shared_ptr<std::string> msg_ptr(new std::string(msg));
+				_ios.post(boost::bind(&traderctp::ProcessInMsg
+					, this, connId, msg_ptr));
+			}			
 		}
 		catch (const std::exception& ex)
 		{
@@ -235,12 +232,10 @@ void traderctp::ProcessInMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 		return;
 	}
 	std::string& msg = *msg_ptr;
-
 	//一个特殊的消息
-	if (connId == -1)
+	if (msg == CLOSE_CONNECTION_MSG)
 	{
-		int nCloseConnection = atoi(msg.c_str());		
-		CloseConnection(nCloseConnection);
+		CloseConnection(connId);
 		return;
 	}
 
@@ -844,9 +839,7 @@ void traderctp::SendMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 	if (totalLength > MAX_MSG_LENTH)
 	{
 		try
-		{
-			long long now1 =
-				duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+		{			
 			_out_mq_ptr->send(BEGIN_OF_PACKAGE.c_str(),BEGIN_OF_PACKAGE.length(), 0);
 			const char* buffer = msg.c_str();
 			size_t start_pos = 0;
@@ -863,11 +856,7 @@ void traderctp::SendMsg(int connId,std::shared_ptr<std::string> msg_ptr)
 				}
 				start_pos += MAX_MSG_LENTH;
 			}			
-			_out_mq_ptr->send(END_OF_PACKAGE.c_str(),END_OF_PACKAGE.length(), 0);
-			long long now2 =
-				duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
-			int ms = static_cast<int>(now2 - now1);
-			Log(LOG_INFO, NULL, "SendMsg time:%d",ms);
+			_out_mq_ptr->send(END_OF_PACKAGE.c_str(),END_OF_PACKAGE.length(), 0);			
 		}
 		catch (std::exception& ex)
 		{
