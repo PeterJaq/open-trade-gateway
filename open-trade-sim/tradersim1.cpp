@@ -196,7 +196,8 @@ void tradersim::ProcessReqLogIn(int connId, ReqLogin& req)
 		m_b_login = WaitLogIn();		
 		if (m_b_login.load())
 		{
-			OnInit();
+			OutputNotifySycn(connId, 0, u8"登录成功");
+			OnInit();			
 			char json_str[1024];
 			sprintf(json_str, (u8"{"\
 				"\"aid\": \"rtn_data\","\

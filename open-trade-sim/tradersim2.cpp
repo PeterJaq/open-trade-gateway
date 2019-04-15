@@ -266,6 +266,7 @@ void tradersim::OnClientReqTransfer(ActionTransfer action_transfer)
 	m_account->static_balance += action_transfer.amount;
 	m_account->changed = true;
 	m_something_changed = true;
+	OutputNotifyAllSycn(0, u8"转账成功");
 	SendUserData();
 }
 
