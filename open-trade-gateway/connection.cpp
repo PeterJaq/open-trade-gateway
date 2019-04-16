@@ -54,7 +54,20 @@ void connection::start()
 
 void connection::stop()
 {
-	m_ws_socket.next_layer().close();
+	try
+	{
+		Log(LOG_INFO
+			, NULL
+			, "trade connection stop,connectionid=%d,fd=%d"
+			, _connection_id
+			, m_ws_socket.next_layer().native_handle());
+		m_ws_socket.next_layer().close();
+	}
+	catch (std::exception& ex)
+	{
+		Log(LOG_ERROR, NULL, "connection stop exception:%s"
+			, ex.what());
+	}
 }
 
 void connection::OnOpenConnection(boost::system::error_code ec)
@@ -63,8 +76,10 @@ void connection::OnOpenConnection(boost::system::error_code ec)
 	{
 		Log(LOG_WARNING
 			, NULL
-			, "trade connection accept fail,session=%p，msg=%s"
-			, this,ec.message().c_str());
+			, "trade connection accept fail,msg=%s,connectionid=%d,fd=%d"
+			,ec.message().c_str()
+			, _connection_id
+			, m_ws_socket.next_layer().native_handle());
 		OnCloseConnection();
 		return;
 	}
@@ -86,11 +101,7 @@ void connection::OnOpenConnection(boost::system::error_code ec)
 		_X_Real_Port = atoi(real_port.c_str());
 	}
 			
-	SendTextMsg(g_config.broker_list_str);
-	Log(LOG_INFO
-		, NULL
-		, "trade server got connection, session=%p"
-		, this);
+	SendTextMsg(g_config.broker_list_str);	
 	DoRead();
 }
 
@@ -103,8 +114,10 @@ void connection::on_read_header(boost::beast::error_code ec
 	{
 		Log(LOG_WARNING
 			, NULL
-			, "connection on_read_header fail, msg=%s"
-			, ec.message());
+			, "connection on_read_header fail,msg=%s,connectionid=%d,fd=%d"
+			, ec.message().c_str()
+			,_connection_id
+			,m_ws_socket.next_layer().native_handle());
 		OnCloseConnection();
 		return;
 	}
@@ -117,30 +130,50 @@ void connection::on_read_header(boost::beast::error_code ec
 
 void connection::SendTextMsg(const std::string& msg)
 {
-	if (m_output_buffer.size() > 0)
+	try
 	{
-		m_output_buffer.push_back(msg);
+		if (m_output_buffer.size() > 0)
+		{
+			m_output_buffer.push_back(msg);
+		}
+		else
+		{
+			m_output_buffer.push_back(msg);
+			DoWrite();
+		}
 	}
-	else
+	catch (std::exception& ex)
 	{
-		m_output_buffer.push_back(msg);
-		DoWrite();
+		Log(LOG_ERROR, NULL, "connection SendTextMsg exception:%s,connectionid=%d,fd=%d"
+			, ex.what()
+			, _connection_id
+			, m_ws_socket.next_layer().native_handle());
 	}	
 }
 
 void connection::DoWrite()
 {
-	if (m_output_buffer.empty())
+	try
 	{
-		return;
+		if (m_output_buffer.empty())
+		{
+			return;
+		}
+		auto write_buf = boost::asio::buffer(m_output_buffer.front());
+		m_ws_socket.text(true);
+		m_ws_socket.async_write(
+			write_buf,
+			boost::beast::bind_front_handler(
+				&connection::OnWrite,
+				shared_from_this()));
 	}
-	auto write_buf = boost::asio::buffer(m_output_buffer.front());
-	m_ws_socket.text(true);
-	m_ws_socket.async_write(
-		write_buf,
-		boost::beast::bind_front_handler(
-			&connection::OnWrite,
-			shared_from_this()));
+	catch (std::exception& ex)
+	{
+		Log(LOG_ERROR, NULL, "connection DoWrite exception=%s,connectionid=%d,fd=%d"
+			,ex.what()
+			,_connection_id
+			,m_ws_socket.next_layer().native_handle());
+	}	
 }
 
 void connection::DoRead()
@@ -160,8 +193,10 @@ void connection::OnRead(boost::system::error_code ec, std::size_t bytes_transfer
 		{
 			Log(LOG_WARNING
 				, NULL
-				, "trade connection read fail, session=%p"
-				, this);
+				, "trade connection read fail,connection=%d,fd=%d,error=%s"
+				, _connection_id
+				, m_ws_socket.next_layer().native_handle()
+				,ec.message().c_str());
 		}
 		OnCloseConnection();
 		return;
@@ -177,7 +212,10 @@ void connection::OnWrite(boost::system::error_code ec,std::size_t bytes_transfer
 {
 	if (ec)
 	{
-		Log(LOG_WARNING, NULL, "trade server send message fail");
+		Log(LOG_WARNING, NULL, "trade server send message fail,connection=%d,fd=%d,err=%s"
+			,_connection_id
+			,m_ws_socket.next_layer().native_handle()
+			,ec.message().c_str());
 		OnCloseConnection();
 		return;
 	}				
@@ -198,8 +236,10 @@ void connection::OnMessage(const std::string &json_str)
 	if (!ss.FromString(json_str.c_str()))
 	{
 		Log(LOG_WARNING, NULL
-			, "connection recieve invalid diff data package:%s"
-			, json_str.c_str());
+			, "connection recieve invalid diff data package=%s,connection=%d,fd=%d"
+			, json_str.c_str()
+			,_connection_id
+			,m_ws_socket.next_layer().native_handle());
 		return;
 	}
 
@@ -209,7 +249,7 @@ void connection::OnMessage(const std::string &json_str)
 	if (req.aid == "req_login")
 	{
 		Log(LOG_INFO, NULL
-			, "req_login client_system_info:%s,client_app_id:%s"
+			, "req_login client_system_info=%s,client_app_id=%s"
 			, req.client_system_info.c_str()
 		, req.client_app_id.c_str());
 		ProcessLogInMessage(req, json_str);
@@ -228,8 +268,8 @@ void connection::ProcessLogInMessage(const ReqLogin& req, const std::string &jso
 	if (it == g_config.brokers.end())
 	{
 		Log(LOG_WARNING,NULL,
-			"trade server req_login invalid bid,session=%p, bid=%s"
-			, this,req.bid.c_str());
+			"trade server req_login invalid bid,connection=%d, bid=%s"
+			, _connection_id,req.bid.c_str());
 		return;
 	}
 
@@ -248,13 +288,13 @@ void connection::ProcessLogInMessage(const ReqLogin& req, const std::string &jso
 		 UserProcessInfo_ptr userProcessInfoPtr = std::make_shared<UserProcessInfo>(m_ios,_user_broker_key,_reqLogin);
 		 if (nullptr == userProcessInfoPtr)
 		 {
-			 Log(LOG_ERROR, NULL,"new user process fail:%s"
+			 Log(LOG_ERROR, NULL,"new user process fail=%s"
 				 ,_user_broker_key.c_str());			
 			 return;
 		 }
 		 if (!userProcessInfoPtr->StartProcess())
 		 {
-			 Log(LOG_ERROR,NULL, "can not start up user process:%s"
+			 Log(LOG_ERROR,NULL, "can not start up user process=%s"
 				 , _user_broker_key.c_str());			
 			 return;
 		 }
@@ -285,7 +325,7 @@ void connection::ProcessLogInMessage(const ReqLogin& req, const std::string &jso
 			flag = userProcessInfoPtr->StartProcess();
 			if (!flag)
 			{
-				Log(LOG_ERROR, NULL, "can not start up user process:%s"
+				Log(LOG_ERROR, NULL, "can not start up user process=%s"
 					, _user_broker_key.c_str());				
 				return;
 			}
@@ -304,7 +344,7 @@ void connection::ProcessOtherMessage(const std::string &json_str)
 	if (userIt == g_userProcessInfoMap.end())
 	{
 		Log(LOG_WARNING, NULL
-			, "send msg before user process start up,msg droped:%s"
+			, "send msg before user process start up,msg droped=%s"
 			, json_str.c_str());
 		return;
 	}
@@ -314,7 +354,7 @@ void connection::ProcessOtherMessage(const std::string &json_str)
 	if (!flag)
 	{
 		Log(LOG_WARNING, NULL
-			,"user process is down,msg can not send to user process:%s"
+			,"user process is down,msg can not send to user process=%s"
 			,json_str.c_str());
 		return;
 	}
@@ -340,8 +380,10 @@ void connection::OnCloseConnection()
 	}
 	catch (std::exception& ex)
 	{
-		Log(LOG_ERROR, NULL, "connection::OnCloseConnection():%s"
-			, ex.what());
+		Log(LOG_ERROR, NULL, "connection::OnCloseConnection(),err=%s,connection=%d,fd=%d"
+			, ex.what()
+			, _connection_id
+			, m_ws_socket.next_layer().native_handle());
 	}	
 }
 

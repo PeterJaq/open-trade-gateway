@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <string>
+#include <atomic>
 #include <boost/asio.hpp>
 #include <boost/process.hpp>
 
@@ -46,6 +47,9 @@ int main(int argc, char* argv[])
 			return -1;
 		}
 		
+		std::atomic_bool flag;
+		flag.store(true);
+
 		boost::asio::signal_set signals_(ios);
 		signals_.add(SIGINT);
 		signals_.add(SIGTERM);
@@ -53,17 +57,30 @@ int main(int argc, char* argv[])
 			signals_.add(SIGQUIT);
 		#endif 
 		signals_.async_wait(
-			[&s,&ios,&md_child](boost::system::error_code, int sig)
-		{				
+			[&s,&ios,&md_child,&flag](boost::system::error_code, int sig)
+		{						
 			md_child.terminate();
-			s.stop();
+			s.stop();	
+			flag.store(false);
 			ios.stop();
 			Log(LOG_INFO, NULL, "trade_server got sig %d", sig);
 			Log(LOG_INFO, NULL, "trade_server exit");
 			LogCleanup();
 		});
-
-		ios.run();
+		
+		while (flag.load())
+		{
+			try
+			{
+				ios.run();
+				break;
+			}
+			catch(std::exception& ex)
+			{
+				Log(LOG_ERROR, NULL, "ios run exception:%s"
+					,ex.what());
+			}
+		}
 
 		return 0;
 	}

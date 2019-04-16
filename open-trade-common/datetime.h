@@ -25,6 +25,13 @@ enum DateTimeField
 
 struct Date 
 {
+	Date()
+		:year(0)
+		,month(0)
+		,day(0)
+	{
+	}
+
     long year;
     long month;
     long day;
@@ -32,6 +39,14 @@ struct Date
 
 struct Time 
 {
+	Time()
+		:hour(0)
+		, minute(0)
+		, second(0)
+		, microsecond(0)
+	{
+	}
+
     long hour;
     long minute;
     long second;
@@ -46,6 +61,13 @@ struct DateTime
 
 struct TimeDelta 
 {
+	TimeDelta()
+		:days(0)
+		, seconds(0)
+		, microseconds(0)
+	{
+	}
+
     long days;
     long seconds;
     long microseconds;

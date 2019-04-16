@@ -710,6 +710,7 @@ long long DateTimeToEpochNano(const struct DateTime* dt)
     p.tm_hour = dt->time.hour;
     p.tm_min = dt->time.minute;
     p.tm_sec = dt->time.second;
+	p.tm_isdst = 0;
     t = mktime(&p);
     nano = (long long)t * 1000000000 + dt->time.microsecond * 1000;
     return nano;

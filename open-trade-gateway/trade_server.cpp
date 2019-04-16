@@ -112,7 +112,7 @@ void trade_server::OnAccept(boost::system::error_code ec
 	{
 		Log(LOG_WARNING, NULL
 			, "trade_server accept error, ec=%s"
-			, ec.message());
+			, ec.message().c_str());
 		do_accept();
 		return;
 	}	

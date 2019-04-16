@@ -12,54 +12,80 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <atomic>
 
 #include <boost/asio.hpp>
 
 int main(int argc, char* argv[])
 {	
-	if (argc != 2)
+	try
 	{
-		return -1;
-	}	
-	std::string logFileName = argv[1];
-	if (!LogInit())
-	{
-		return -1;
-	}
-		
-	Log(LOG_INFO, NULL
-		, "trade ctp %s init"
-		,logFileName.c_str());
+		if (argc != 2)
+		{
+			return -1;
+		}
+		std::string logFileName = argv[1];
+		if (!LogInit())
+		{
+			return -1;
+		}
 
-	//加载配置文件
-	if (!LoadConfig())
-	{
-		Log(LOG_WARNING,NULL
-			,"trade ctp %s load config failed!"
+		Log(LOG_INFO, NULL
+			, "trade ctp %s init"
 			, logFileName.c_str());
-		LogCleanup();
-		return -1;
-	}
-	
-	boost::asio::io_context ioc;
-	boost::asio::signal_set signals_(ioc);
 
-	signals_.add(SIGINT);
-	signals_.add(SIGTERM);
-	#if defined(SIGQUIT)
+		//加载配置文件
+		if (!LoadConfig())
+		{
+			Log(LOG_WARNING, NULL
+				, "trade ctp %s load config failed!"
+				, logFileName.c_str());
+			LogCleanup();
+			return -1;
+		}
+
+		boost::asio::io_context ioc;
+
+		std::atomic_bool flag;
+		flag.store(true);
+
+		boost::asio::signal_set signals_(ioc);
+
+		signals_.add(SIGINT);
+		signals_.add(SIGTERM);
+#if defined(SIGQUIT)
 		signals_.add(SIGQUIT);
-	#endif 
+#endif 
 
-	traderctp tradeCtp(ioc,logFileName);
-	tradeCtp.Start();
-	signals_.async_wait(
-		[&ioc,&tradeCtp,&logFileName](boost::system::error_code, int sig)
+		traderctp tradeCtp(ioc, logFileName);
+		tradeCtp.Start();
+		signals_.async_wait(
+			[&ioc, &tradeCtp, &logFileName, &flag](boost::system::error_code, int sig)
+		{
+			tradeCtp.Stop();
+			flag.store(false);
+			ioc.stop();
+			Log(LOG_INFO, NULL, "trade ctp %s got sig %d", logFileName.c_str(), sig);
+			Log(LOG_INFO, NULL, "trade ctp %s exit", logFileName.c_str());
+			LogCleanup();
+		});
+
+		while (flag.load())
+		{
+			try
+			{
+				ioc.run();
+				break;
+			}
+			catch (std::exception& ex)
+			{
+				Log(LOG_ERROR, NULL, "trade ctp ioc run exception:%s"
+					, ex.what());
+			}
+		}
+	}
+	catch (std::exception& e)
 	{
-		tradeCtp.Stop();
-		ioc.stop();
-		Log(LOG_INFO, NULL, "trade ctp %s got sig %d",logFileName.c_str(),sig);
-		Log(LOG_INFO, NULL, "trade ctp %s exit",logFileName.c_str());
-		LogCleanup();
-	});	
-	ioc.run();		
+		std::cerr << "trade ctp exception: " << e.what() << std::endl;
+	}
 }

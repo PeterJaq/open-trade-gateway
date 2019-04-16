@@ -106,9 +106,9 @@ void traderctp::Start()
 
 void traderctp::ReceiveMsg()
 {
-	char buf[MAX_MSG_LENTH];
-	unsigned int priority;
-	boost::interprocess::message_queue::size_type recvd_size;
+	char buf[MAX_MSG_LENTH+1];
+	unsigned int priority=0;
+	boost::interprocess::message_queue::size_type recvd_size=0;
 	while (true)
 	{
 		try

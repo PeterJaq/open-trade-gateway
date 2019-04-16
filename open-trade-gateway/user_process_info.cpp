@@ -214,16 +214,20 @@ void UserProcessInfo::ReceiveMsg_i()
 {
 	std::string _str_packge_splited = "";
 	bool _packge_is_begin = false;
-	char buf[MAX_MSG_LENTH];
-	unsigned int priority;
-	boost::interprocess::message_queue::size_type recvd_size;
+	char buf[MAX_MSG_LENTH+1];
+	unsigned int priority=0;
+	boost::interprocess::message_queue::size_type recvd_size=0;
 	while (_run_thread)
 	{
 		try
 		{
 			memset(buf, 0, sizeof(buf));
-			_out_mq_ptr->receive(buf, sizeof(buf), recvd_size, priority);
-			std::string msg(buf);
+			_out_mq_ptr->receive(buf,sizeof(buf),recvd_size,priority);
+			std::string msg=buf;
+			if (msg.empty())
+			{
+				continue;
+			}
 			if (msg == BEGIN_OF_PACKAGE)
 			{
 				_str_packge_splited = "";
@@ -235,10 +239,13 @@ void UserProcessInfo::ReceiveMsg_i()
 				_packge_is_begin = false;
 				if (_str_packge_splited.length() > 0)
 				{
-					std::shared_ptr<std::string> msg_ptr =
-						std::shared_ptr<std::string>(new std::string(_str_packge_splited));
-					io_context_.post(boost::bind(&UserProcessInfo::ProcessMsg
-						, shared_from_this(),msg_ptr));
+					if (!io_context_.stopped())
+					{
+						std::shared_ptr<std::string> msg_ptr =
+							std::shared_ptr<std::string>(new std::string(_str_packge_splited));
+						io_context_.post(boost::bind(&UserProcessInfo::ProcessMsg
+							, shared_from_this(), msg_ptr));
+					}					
 				}
 				continue;
 			}
@@ -250,11 +257,14 @@ void UserProcessInfo::ReceiveMsg_i()
 					continue;
 				}
 				else
-				{
-					std::shared_ptr<std::string> msg_ptr =
-						std::shared_ptr<std::string>(new std::string(msg));
-					io_context_.post(boost::bind(&UserProcessInfo::ProcessMsg
-						, shared_from_this(),msg_ptr));
+				{					
+					if (!io_context_.stopped())
+					{
+						std::shared_ptr<std::string> msg_ptr =
+							std::shared_ptr<std::string>(new std::string(msg));
+						io_context_.post(boost::bind(&UserProcessInfo::ProcessMsg
+							, shared_from_this(), msg_ptr));
+					}					
 					continue;
 				}
 			}
