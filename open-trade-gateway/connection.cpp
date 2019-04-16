@@ -65,7 +65,7 @@ void connection::stop()
 	}
 	catch (std::exception& ex)
 	{
-		Log(LOG_ERROR, NULL, "connection stop exception:%s"
+		Log(LOG_INFO, NULL, "connection stop exception:%s"
 			, ex.what());
 	}
 }
@@ -84,25 +84,33 @@ void connection::OnOpenConnection(boost::system::error_code ec)
 		return;
 	}
 
-	boost::asio::ip::tcp::endpoint remote_ep = m_ws_socket.next_layer().remote_endpoint();
-	_X_Real_IP = req_["X-Real-IP"].to_string();	
-	if (_X_Real_IP.empty())
+	try
 	{
-		_X_Real_IP = remote_ep.address().to_string();
-	}
+		boost::asio::ip::tcp::endpoint remote_ep = m_ws_socket.next_layer().remote_endpoint();
+		_X_Real_IP = req_["X-Real-IP"].to_string();
+		if (_X_Real_IP.empty())
+		{
+			_X_Real_IP = remote_ep.address().to_string();
+		}
 
-	std::string real_port = req_["X-Real-Port"].to_string();
-	if (real_port.empty())
-	{
-		_X_Real_Port=remote_ep.port();		
+		std::string real_port = req_["X-Real-Port"].to_string();
+		if (real_port.empty())
+		{
+			_X_Real_Port = remote_ep.port();
+		}
+		else
+		{
+			_X_Real_Port = atoi(real_port.c_str());
+		}
+
+		SendTextMsg(g_config.broker_list_str);
+		DoRead();
 	}
-	else
+	catch (std::exception& ex)
 	{
-		_X_Real_Port = atoi(real_port.c_str());
-	}
-			
-	SendTextMsg(g_config.broker_list_str);	
-	DoRead();
+		Log(LOG_INFO,NULL,"connection OnOpenConnection exception:%s"
+			, ex.what());
+	}	
 }
 
 void connection::on_read_header(boost::beast::error_code ec
@@ -112,7 +120,7 @@ void connection::on_read_header(boost::beast::error_code ec
 
 	if (ec == boost::beast::http::error::end_of_stream)
 	{
-		Log(LOG_WARNING
+		Log(LOG_INFO
 			, NULL
 			, "connection on_read_header fail,msg=%s,connectionid=%d,fd=%d"
 			, ec.message().c_str()
@@ -191,7 +199,7 @@ void connection::OnRead(boost::system::error_code ec, std::size_t bytes_transfer
 	{
 		if (ec != boost::beast::websocket::error::closed)
 		{
-			Log(LOG_WARNING
+			Log(LOG_INFO
 				, NULL
 				, "trade connection read fail,connection=%d,fd=%d,error=%s"
 				, _connection_id
@@ -212,7 +220,7 @@ void connection::OnWrite(boost::system::error_code ec,std::size_t bytes_transfer
 {
 	if (ec)
 	{
-		Log(LOG_WARNING, NULL, "trade server send message fail,connection=%d,fd=%d,err=%s"
+		Log(LOG_INFO, NULL, "trade server send message fail,connection=%d,fd=%d,err=%s"
 			,_connection_id
 			,m_ws_socket.next_layer().native_handle()
 			,ec.message().c_str());
@@ -235,7 +243,7 @@ void connection::OnMessage(const std::string &json_str)
 	SerializerTradeBase ss;
 	if (!ss.FromString(json_str.c_str()))
 	{
-		Log(LOG_WARNING, NULL
+		Log(LOG_INFO, NULL
 			, "connection recieve invalid diff data package=%s,connection=%d,fd=%d"
 			, json_str.c_str()
 			,_connection_id
@@ -343,7 +351,7 @@ void connection::ProcessOtherMessage(const std::string &json_str)
 	auto userIt = g_userProcessInfoMap.find(_user_broker_key);
 	if (userIt == g_userProcessInfoMap.end())
 	{
-		Log(LOG_WARNING, NULL
+		Log(LOG_INFO, NULL
 			, "send msg before user process start up,msg droped=%s"
 			, json_str.c_str());
 		return;
@@ -353,7 +361,7 @@ void connection::ProcessOtherMessage(const std::string &json_str)
 	bool flag = userProcessInfoPtr->ProcessIsRunning();
 	if (!flag)
 	{
-		Log(LOG_WARNING, NULL
+		Log(LOG_ERROR, NULL
 			,"user process is down,msg can not send to user process=%s"
 			,json_str.c_str());
 		return;
