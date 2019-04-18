@@ -284,6 +284,8 @@ private:
 
 	void ReqConfirmSettlement();
 
+	void ProcessEmptySettlementInfo();
+
 	void ProcessQrySettlementInfo(std::shared_ptr<CThostFtdcSettlementInfoField> pSettlementInfo,bool bIsLast);
 
 	void ProcessSettlementInfoConfirm(std::shared_ptr<CThostFtdcSettlementInfoConfirmField> pSettlementInfoConfirm,bool bIsLast);

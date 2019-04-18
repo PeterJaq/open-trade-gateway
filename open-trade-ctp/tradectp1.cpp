@@ -466,16 +466,34 @@ void  traderctp::ProcessQrySettlementInfo(std::shared_ptr<CThostFtdcSettlementIn
 	}	
 }
 
+void traderctp::ProcessEmptySettlementInfo()
+{
+	Log(LOG_INFO, NULL, "ctp OnRspQrySettlementInfo,SettlementInfo is empty,UserID=%s"
+		,_req_login.user_name.c_str());
+	m_need_query_settlement.store(false);
+	if (0 == m_confirm_settlement_status.load())
+	{
+		OutputNotifyAllSycn(0, "", "INFO", "SETTLEMENT");
+	}
+}
+
 void traderctp::OnRspQrySettlementInfo(CThostFtdcSettlementInfoField *pSettlementInfo, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast)
 {
-	if (!pSettlementInfo)
+	if (nullptr==pSettlementInfo)
 	{
+		if ((nullptr == pRspInfo)&&(bIsLast))
+		{
+			_ios.post(boost::bind(&traderctp::ProcessEmptySettlementInfo,this));
+		}		
 		return;
 	}	
-	std::shared_ptr<CThostFtdcSettlementInfoField> ptr
-		= std::make_shared<CThostFtdcSettlementInfoField>
-		(CThostFtdcSettlementInfoField(*pSettlementInfo));
-	_ios.post(boost::bind(&traderctp::ProcessQrySettlementInfo,this,ptr,bIsLast));	
+	else
+	{
+		std::shared_ptr<CThostFtdcSettlementInfoField> ptr
+			= std::make_shared<CThostFtdcSettlementInfoField>
+			(CThostFtdcSettlementInfoField(*pSettlementInfo));
+		_ios.post(boost::bind(&traderctp::ProcessQrySettlementInfo, this, ptr, bIsLast));
+	}	
 }
 
 void traderctp::ProcessSettlementInfoConfirm(std::shared_ptr<CThostFtdcSettlementInfoConfirmField> pSettlementInfoConfirm

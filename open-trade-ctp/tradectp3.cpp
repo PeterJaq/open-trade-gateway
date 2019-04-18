@@ -261,12 +261,7 @@ void traderctp::ReSendSettlementInfo(int connectId)
 	{
 		return;
 	}
-
-	if (m_settlement_info.empty())
-	{
-		return;
-	}
-
+		
 	if (m_confirm_settlement_status.load()!=0)
 	{
 		return;
@@ -558,10 +553,10 @@ void traderctp::AfterLogin()
 {
 	if (g_config.auto_confirm_settlement)
 	{
-		if (0 == m_confirm_settlement_status.load())
+		/*if (0 == m_confirm_settlement_status.load())
 		{
 			m_confirm_settlement_status.store(1);
-		}
+		}*/
 		ReqConfirmSettlement();
 	}
 	else if (m_settlement_info.empty())

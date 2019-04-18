@@ -286,6 +286,8 @@ private:
 
 	void ReqConfirmSettlement();	
 
+	void ProcessEmptySettlementInfo();
+
 	void LoadFromFile();
 
 	void SaveToFile();
