@@ -307,15 +307,14 @@ int traderctp::RegSystemInfo()
 	int ret = m_pTdApi->RegisterUserSystemInfo(&f);
 	Log(LOG_INFO
 		, NULL
-		, "ctp RegisterUserSystemInfo, instance=%p, UserID=%s,ClientLoginTime=%s,ClientPublicIP=%s,ClientIPPort=%d,ClientAppID=%s,ClientSystemInfoLen=%d, ClientSystemInfo=%s, ret=%d"
+		, "ctp RegisterUserSystemInfo, instance=%p, UserID=%s,ClientLoginTime=%s,ClientPublicIP=%s,ClientIPPort=%d,ClientAppID=%s,ClientSystemInfoLen=%d, ret=%d"
 		, this
 		, f.UserID
 		, f.ClientLoginTime
 		, _req_login.client_ip.c_str()
 		, _req_login.client_port
 		,_req_login.client_app_id.c_str()
-		, client_system_info.length()
-		, client_system_info.c_str()
+		, client_system_info.length()		
 		, ret);
 	return ret;	
 }
