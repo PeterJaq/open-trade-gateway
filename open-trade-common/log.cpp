@@ -94,8 +94,8 @@ void Log(LogLevel level, const char* pack_str, const char* message_fmt, ...)
 
 bool LogInit()
 {
-	std::string logFileName = "/var/log/open-trade-gateway/otg_log.txt";
-    log_context.m_log_file_fd = open(logFileName.c_str(),O_WRONLY|O_APPEND| O_CREAT);
+	std::string logFileName = "/var/log/open-trade-gateway/open-trade-gateway.log";
+    log_context.m_log_file_fd = open(logFileName.c_str(),O_WRONLY|O_APPEND| O_CREAT,S_IRUSR|S_IWUSR);
 	if (log_context.m_log_file_fd == -1)
 	{
         printf("can't open log file:%s",logFileName.c_str());
