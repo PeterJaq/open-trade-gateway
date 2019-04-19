@@ -79,13 +79,14 @@ int main(int argc, char* argv[])
 			}
 			catch (std::exception& ex)
 			{
-				Log(LOG_ERROR, NULL, "trade ctp ioc run exception:%s"
+				Log(LOG_ERROR, NULL, "trade ctp %s ioc run exception:%s"
+					, logFileName.c_str()
 					, ex.what());
 			}
 		}
 	}
 	catch (std::exception& e)
 	{
-		std::cerr << "trade ctp exception: " << e.what() << std::endl;
+		std::cerr << "trade ctp "<< argv[1] <<" exception: " << e.what() << std::endl;
 	}
 }

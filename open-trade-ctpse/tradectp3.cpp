@@ -157,9 +157,10 @@ int traderctp::ReqQryBrokerTradingParams()
 	if (0 != r)
 	{
 		Log(LOG_INFO, NULL
-			, "ctp ReqQryBrokerTradingParams, instance=%p, InvestorID=%s, ret=%d"
+			, "ctpse ReqQryBrokerTradingParams,instance=%p,bid=%s,UserID=%s, ret=%d"
 			, this
-			, field.InvestorID
+			, _req_login.bid.c_str()
+			, _req_login.user_name.c_str()
 			, r);
 	}
 	return r;
@@ -175,11 +176,12 @@ int traderctp::ReqQryAccount(int reqid)
 	if (0 != r)
 	{
 		Log(LOG_INFO, NULL
-			, "ctp ReqQryTradingAccount, instance=%p, InvestorID=%s, ret=%d"
+			, "ctpse ReqQryTradingAccount,instance=%p,bid=%s,UserID=%s,ret=%d"
 			, this
-			, field.InvestorID
+			, _req_login.bid.c_str()
+			, _req_login.user_name.c_str()
 			, r);
-	}	
+	}
 	return r;
 }
 
@@ -190,8 +192,11 @@ int traderctp::ReqQryPosition(int reqid)
 	strcpy_x(field.BrokerID, m_broker_id.c_str());
 	strcpy_x(field.InvestorID, _req_login.user_name.c_str());
 	int r = m_pTdApi->ReqQryInvestorPosition(&field, reqid);
-	Log(LOG_INFO, NULL, "ctp ReqQryInvestorPosition, instance=%p, InvestorID=%s, ret=%d"
-		, this, field.InvestorID, r);
+	Log(LOG_INFO, NULL, "ctpse ReqQryInvestorPosition,instance=%p,bid=%s,UserID=%s, ret=%d"
+		, this
+		, _req_login.bid.c_str()
+		, _req_login.user_name.c_str()
+		, r);
 	return r;
 }
 
@@ -202,7 +207,11 @@ void traderctp::ReqQryBank()
 	strcpy_x(field.BrokerID, m_broker_id.c_str());
 	m_pTdApi->ReqQryContractBank(&field, 0);
 	int r = m_pTdApi->ReqQryContractBank(&field, 0);
-	Log(LOG_INFO, NULL, "ctp ReqQryContractBank, instance=%p, ret=%d", this, r);
+	Log(LOG_INFO, NULL, "ctpse ReqQryContractBank,instance=%p,bid=%s,UserID=%s, ret=%d"
+		, this
+		, _req_login.bid.c_str()
+		, _req_login.user_name.c_str()
+		, r);
 }
 
 void traderctp::ReqQryAccountRegister()
@@ -212,7 +221,11 @@ void traderctp::ReqQryAccountRegister()
 	strcpy_x(field.BrokerID, m_broker_id.c_str());
 	m_pTdApi->ReqQryAccountregister(&field, 0);
 	int r = m_pTdApi->ReqQryAccountregister(&field, 0);
-	Log(LOG_INFO, NULL, "ctp ReqQryAccountregister, instance=%p, ret=%d", this, r);
+	Log(LOG_INFO, NULL, "ctpse ReqQryAccountregister,instance=%p,bid=%s,UserID=%s, ret=%d"
+		, this
+		, _req_login.bid.c_str()
+		, _req_login.user_name.c_str()
+		, r);
 }
 
 void traderctp::ReqQrySettlementInfo()
@@ -223,8 +236,11 @@ void traderctp::ReqQrySettlementInfo()
 	strcpy_x(field.InvestorID,_req_login.user_name.c_str());
 	strcpy_x(field.AccountID,_req_login.user_name.c_str());
 	int r = m_pTdApi->ReqQrySettlementInfo(&field, 0);
-	Log(LOG_INFO, NULL, "ctp ReqQrySettlementInfo, instance=%p, InvestorID=%s, ret=%d"
-		, this, field.InvestorID, r);
+	Log(LOG_INFO, NULL, "ctpse ReqQrySettlementInfo,instance=%p,bid=%s,UserID=%s,ret=%d"
+		, this
+		, _req_login.bid.c_str()
+		, _req_login.user_name.c_str()
+		, r);
 }
 
 Account& traderctp::GetAccount(const std::string account_key)
@@ -284,8 +300,13 @@ void traderctp::SendUserDataImd(int connectId)
 		}
 		if (nullptr == ps.ins)
 		{
-			Log(LOG_ERROR, NULL, "ctp miss symbol %s when processing position, instance=%p"
-				, symbol.c_str(), this);
+			Log(LOG_ERROR, NULL, "ctpse miss symbol %s when processing position,\
+			 instance=%p,bid=%s,UserID=%s"
+				, symbol.c_str()
+				, this
+				, _req_login.bid.c_str()
+				, _req_login.user_name.c_str()
+			);
 			continue;
 		}
 		ps.volume_long = ps.volume_long_his + ps.volume_long_today;
@@ -423,8 +444,13 @@ void traderctp::SendUserData()
 		}			
 		if (nullptr == ps.ins)
 		{
-			Log(LOG_ERROR, NULL, "ctp miss symbol %s when processing position, instance=%p"
-				, symbol.c_str(), this);
+			Log(LOG_ERROR, NULL, "ctpse miss symbol %s when processing position \
+				, instance=%p,bid=%s,UserID=%s"
+				, symbol.c_str()
+				, this
+				, _req_login.bid.c_str()
+				, _req_login.user_name.c_str()
+			);
 			continue;
 		}		
 		ps.volume_long = ps.volume_long_his + ps.volume_long_today;
