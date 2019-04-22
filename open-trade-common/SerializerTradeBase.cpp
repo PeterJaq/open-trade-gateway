@@ -16,6 +16,8 @@ void SerializerTradeBase::DefineStruct(ReqLogin& d)
 	AddItem(d.client_app_id, "client_app_id");	
 	AddItem(d.client_ip, "client_ip");
 	AddItem(d.client_port, "client_port");
+	AddItem(d.broker_id, "broker_id");
+	AddItem(d.front, "front");
 }
 
 void SerializerTradeBase::DefineStruct(Bank& d)

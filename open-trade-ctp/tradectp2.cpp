@@ -614,10 +614,25 @@ void traderctp::ProcessReqLogIn(int connId,ReqLogin& req)
 		auto it = g_config.brokers.find(_req_login.bid);
 		_req_login.broker = it->second;
 
+		//为了支持次席而添加的功能
+		if ((!_req_login.broker_id.empty()) &&
+			(!_req_login.front.empty()))
+		{
+			Log(LOG_INFO, NULL
+				, "ctp, broker_id=%s,front=%s"
+				, req.broker_id.c_str()
+				, req.front.c_str());
+
+			_req_login.broker.ctp_broker_id = _req_login.broker_id;
+			_req_login.broker.trading_fronts.clear();
+			_req_login.broker.trading_fronts.push_back(_req_login.front);
+		}
+
 		if (!g_config.user_file_path.empty())
 		{
 			m_user_file_path = g_config.user_file_path + "/" + _req_login.bid;
 		}			
+
 		m_data.user_id = _req_login.user_name;
 		LoadFromFile();
 		m_loging_connectId = connId;

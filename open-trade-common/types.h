@@ -146,6 +146,9 @@ struct ReqLogin
 	int client_port;
 	std::string client_system_info;
 	std::string client_app_id;
+	//为了支持次席而添加的功能
+	std::string broker_id;
+	std::string front;
 };
 
 struct Order
