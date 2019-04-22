@@ -288,7 +288,39 @@ void connection::ProcessLogInMessage(const ReqLogin& req, const std::string &jso
 	nss.FromVar(_reqLogin);
 	nss.ToString(&_login_msg);
 	std::string strBrokerType = _reqLogin.broker.broker_type;
-	_user_broker_key = strBrokerType + "_" + _reqLogin.bid + "_" + _reqLogin.user_name;
+
+	if (_user_broker_key.empty())
+	{
+		_user_broker_key = strBrokerType + "_" + _reqLogin.bid + "_" + _reqLogin.user_name;
+	}
+	else
+	{		
+		//防止一个连接进行多个登录
+		std::string new_user_broker_key= strBrokerType + "_" + _reqLogin.bid + "_" + _reqLogin.user_name;
+		Log(LOG_INFO, NULL,
+			"old key=%s,new key=%s"
+			, _user_broker_key.c_str(), new_user_broker_key.c_str());
+		if (new_user_broker_key != _user_broker_key)
+		{
+			auto userIt = g_userProcessInfoMap.find(_user_broker_key);
+			if (userIt != g_userProcessInfoMap.end())
+			{
+				UserProcessInfo_ptr userProcessInfoPtr = userIt->second;
+				bool flag = userProcessInfoPtr->ProcessIsRunning();
+				if (flag)
+				{
+					userProcessInfoPtr->NotifyClose(_connection_id);
+				}
+				if (userProcessInfoPtr->user_connections_.find(_connection_id)
+					!= userProcessInfoPtr->user_connections_.end())
+				{
+					userProcessInfoPtr->user_connections_.erase(_connection_id);
+				}
+			}
+		}
+		_user_broker_key = new_user_broker_key;
+	}
+	
 	auto userIt = g_userProcessInfoMap.find(_user_broker_key);
 	//如果用户进程没有启动,启动用户进程处理
 	if (userIt == g_userProcessInfoMap.end())
